@@ -14,7 +14,7 @@ const TRACK_GAP = 10;
 const CRANK_WINDOW_MS = 1000;
 const MAX_CRANK_RATE = 8;
 const SERIAL_MAX = 1000;
-const SERIAL_MIN_TO_MOVE = 120;   // 串口值低于此 = 视为静止 (游戏端二次过滤)
+const SERIAL_MIN_TO_MOVE = 300;   // 串口值低于此 = 视为静止 (游戏端二次过滤)
 const SERIAL_STALE_MS = 600;      // 超过此时长没收到数据 = 视为 0
 
 const PLAYER_DEFS = [
