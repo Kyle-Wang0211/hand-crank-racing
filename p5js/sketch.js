@@ -14,6 +14,8 @@ const TRACK_GAP = 10;
 const CRANK_WINDOW_MS = 1000;
 const MAX_CRANK_RATE = 8;
 const SERIAL_MAX = 1000;
+const SERIAL_MIN_TO_MOVE = 120;   // 串口值低于此 = 视为静止 (游戏端二次过滤)
+const SERIAL_STALE_MS = 600;      // 超过此时长没收到数据 = 视为 0
 
 const PLAYER_DEFS = [
   { id: 0, nameKey: 'label.player1', color: [235, 80, 80],  key: 'a', keyLabel: 'A' },
@@ -29,6 +31,7 @@ let startTime = 0;
 // 当前状态栏的 i18n 键 (语言切换时重新渲染)
 let currentStatusKey = 'ui.notConnected';
 let currentStatusParams = { k1: 'A', k2: 'L' };
+let lastSerialUpdate = 0;
 
 // --- setup & main loop -------------------------------------------
 
@@ -40,6 +43,7 @@ function setup() {
   arduino = new ArduinoSerial();
   arduino.onValues = (values) => {
     useSerial = true;
+    lastSerialUpdate = millis();
     for (let i = 0; i < players.length && i < values.length; i++) {
       players[i].serialValue = values[i];
     }
@@ -96,20 +100,29 @@ function draw() {
 
 function updateInputs() {
   const now = millis();
+
+  // 陈旧检测: 超过阈值没收到新数据 = 当前电机都视为 0
+  const serialStale = useSerial && (now - lastSerialUpdate > SERIAL_STALE_MS);
+  if (serialStale) {
+    for (const p of players) p.serialValue = 0;
+  }
+
   for (const p of players) {
     p.presses = p.presses.filter(t => now - t < CRANK_WINDOW_MS);
     p.crankRate = p.presses.length;
 
     let target;
     if (useSerial) {
-      target = map(p.serialValue, 0, SERIAL_MAX, 0, 10, true);
+      // 游戏端二次阈值 — 串口值低于门槛一律当 0
+      // 防止 Arduino 端残余噪声或电机惯性让小人自己走
+      const v = p.serialValue < SERIAL_MIN_TO_MOVE ? 0 : p.serialValue;
+      target = map(v, 0, SERIAL_MAX, 0, 10, true);
     } else {
       target = map(p.crankRate, 0, MAX_CRANK_RATE, 0, 10, true);
     }
     p.speed += (target - p.speed) * 0.12;
     if (p.speed < 0.01) p.speed = 0;
   }
-
 }
 
 // 开始按钮的位置 (菜单和结束状态共用) — 用于点击检测和绘制
