@@ -17,10 +17,13 @@
 //   4. 线性映射到 0-1000 发串口
 // ═══════════════════════════════════════════════════════════
 
-const int SAMPLE_MS = 50;     // 采样周期 (20Hz,游戏够流畅)
-const int DEADZONE  = 80;     // 死区: ADC 低于此值算 0 (ESP32 噪声地板 ~30-50)
-const int MAX_ADC   = 2500;   // 满速对应的 ADC 值 (~2500 ≈ 电机 15V,正常摇就能到)
-const int SMOOTH_N  = 6;      // EMA 窗口,大=更平滑但有延迟 (4-10 之间)
+// ─── 参数已按"电机5V-24V + 22k/3.3k分压 + ESP32 12-bit ADC"标定好 ───
+const int SAMPLE_MS = 50;     // 采样周期 50ms = 20Hz (游戏够流畅)
+const int DEADZONE  = 60;     // 低于此 ADC 值算 0 (避开噪声 + 小残压)
+                              //   = 电机约 0.37V 以下 = 手没动
+const int MAX_ADC   = 2000;   // 满速门槛 ≈ 电机 12.4V ≈ 使劲摇
+                              //   低于此按比例给速度,达到就 100%
+const int SMOOTH_N  = 6;      // EMA 窗口 (响应 ~0.3s,够快但不抖)
 
 // 调试开关: 打开后每次会多发一行 "#raw:xxx,xxx" 让你在串口监视器里看原始 ADC
 // p5.js 端会忽略 # 开头的行 (需要先在 serial.js 加过滤,目前不加也没事,parseFloat 会返回 NaN)
