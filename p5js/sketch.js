@@ -113,10 +113,15 @@ function updateInputs() {
 
     let target;
     if (useSerial) {
-      // 游戏端二次阈值 — 串口值低于门槛一律当 0
-      // 防止 Arduino 端残余噪声或电机惯性让小人自己走
-      const v = p.serialValue < SERIAL_MIN_TO_MOVE ? 0 : p.serialValue;
-      target = map(v, 0, SERIAL_MAX, 0, 10, true);
+      // 映射曲线:
+      //   < 300  → 0     (静止)
+      //   300    → 5     (一到门槛直接快走,不磨磨蹭蹭)
+      //   1000   → 10    (全力摇 = 冲刺)
+      if (p.serialValue < SERIAL_MIN_TO_MOVE) {
+        target = 0;
+      } else {
+        target = map(p.serialValue, SERIAL_MIN_TO_MOVE, SERIAL_MAX, 5, 10, true);
+      }
     } else {
       target = map(p.crankRate, 0, MAX_CRANK_RATE, 0, 10, true);
     }
