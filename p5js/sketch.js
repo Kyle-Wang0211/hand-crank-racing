@@ -110,15 +110,27 @@ function updateInputs() {
     if (p.speed < 0.01) p.speed = 0;
   }
 
-  // 串口模式下,任何一路摇起来就自动开始比赛 (不用再按键盘)
-  if (useSerial && state === 'menu') {
-    for (const p of players) {
-      if (p.serialValue > 150) {
-        state = 'racing';
-        startTime = millis();
-        break;
-      }
-    }
+}
+
+// 开始按钮的位置 (菜单和结束状态共用) — 用于点击检测和绘制
+function startButtonRect() {
+  return { x: CANVAS_W / 2, y: CANVAS_H / 2 + 90, w: 240, h: 64 };
+}
+
+function isInButton(mx, my, r) {
+  return mx > r.x - r.w / 2 && mx < r.x + r.w / 2 &&
+         my > r.y - r.h / 2 && my < r.y + r.h / 2;
+}
+
+function mousePressed() {
+  const btn = startButtonRect();
+  if (state === 'menu' && isInButton(mouseX, mouseY, btn)) {
+    state = 'racing';
+    startTime = millis();
+    // 清掉菜单期间积累的键盘按键,避免误开局后还带着速度
+    for (const p of players) p.presses = [];
+  } else if (state === 'finished' && isInButton(mouseX, mouseY, btn)) {
+    resetGame();
   }
 }
 
@@ -148,7 +160,8 @@ function keyPressed(event) {
   for (const p of players) {
     if (k === p.key && !p.finished) {
       p.presses.push(millis());
-      if (state === 'menu') {
+      // 键盘模式下,按 A/L 可以直接开始(不用点按钮);串口模式强制点按钮
+      if (state === 'menu' && !useSerial) {
         state = 'racing';
         startTime = millis();
       }
@@ -332,25 +345,20 @@ function drawOverlay() {
     textAlign(CENTER, CENTER);
     fill(255);
     textSize(44);
-    text(t('game.title'), CANVAS_W / 2, CANVAS_H / 2 - 70);
-    textSize(22);
+    text(t('game.title'), CANVAS_W / 2, CANVAS_H / 2 - 90);
+    textSize(20);
     if (useSerial) {
       fill(235, 80, 80);
-      text(t('game.p1Crank'), CANVAS_W / 2 - 150, CANVAS_H / 2);
+      text(t('game.p1Crank'), CANVAS_W / 2 - 150, CANVAS_H / 2 - 20);
       fill(80, 150, 235);
-      text(t('game.p2Crank'), CANVAS_W / 2 + 150, CANVAS_H / 2);
-      textSize(14);
-      fill(255, 220, 100);
-      text(t('game.crankToStart'), CANVAS_W / 2, CANVAS_H / 2 + 50);
+      text(t('game.p2Crank'), CANVAS_W / 2 + 150, CANVAS_H / 2 - 20);
     } else {
       fill(235, 80, 80);
-      text(t('game.p1Mash', { k: 'A' }), CANVAS_W / 2 - 150, CANVAS_H / 2);
+      text(t('game.p1Mash', { k: 'A' }), CANVAS_W / 2 - 150, CANVAS_H / 2 - 20);
       fill(80, 150, 235);
-      text(t('game.p2Mash', { k: 'L' }), CANVAS_W / 2 + 150, CANVAS_H / 2);
-      textSize(14);
-      fill(180);
-      text(t('game.serialHint'), CANVAS_W / 2, CANVAS_H / 2 + 50);
+      text(t('game.p2Mash', { k: 'L' }), CANVAS_W / 2 + 150, CANVAS_H / 2 - 20);
     }
+    drawStartButton(t('game.startBtn'));
   } else if (state === 'finished') {
     fill(0, 210);
     rect(0, 0, CANVAS_W, CANVAS_H);
@@ -375,9 +383,31 @@ function drawOverlay() {
       y += 36;
     }
 
-    textSize(16);
-    fill(180);
-    text(t('game.pressRToRetry'), CANVAS_W / 2, CANVAS_H / 2 + 110);
+    drawStartButton(t('game.retryBtn'));
+  }
+}
+
+// 在菜单/结束状态绘制一个可点击的按钮
+function drawStartButton(label) {
+  const btn = startButtonRect();
+  const hovering = isInButton(mouseX, mouseY, btn);
+  push();
+  rectMode(CENTER);
+  noStroke();
+  fill(hovering ? 50 : 40, hovering ? 200 : 170, hovering ? 80 : 70);
+  rect(btn.x, btn.y, btn.w, btn.h, 10);
+  fill(255);
+  textAlign(CENTER, CENTER);
+  textSize(22);
+  textStyle(BOLD);
+  text(label, btn.x, btn.y);
+  textStyle(NORMAL);
+  pop();
+  // 鼠标指针
+  if (hovering) {
+    cursor(HAND);
+  } else {
+    cursor(ARROW);
   }
 }
 
