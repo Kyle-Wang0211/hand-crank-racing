@@ -41,8 +41,15 @@ void setup() {
 
 void loop() {
   // ---- 1. 原始采样 ----
-  int raw1 = analogRead(A0);
-  int raw2 = analogRead(A1);
+  // 注意: ESP32 多通道共用一个 ADC,切换通道时会有电荷残留串扰。
+  //       每个通道先空读一次 "清零",再真正读,彻底消除串扰。
+  (void)analogRead(A0);         // 空读: 把 ADC 内部切到 A0 并稳定下来
+  delayMicroseconds(50);
+  int raw1 = analogRead(A0);    // 真读
+
+  (void)analogRead(A1);         // 空读
+  delayMicroseconds(50);
+  int raw2 = analogRead(A1);    // 真读
 
   // ---- 2. 指数滑动平均 (EMA) ----
   // 公式: ema = ema + (raw - ema) / N
