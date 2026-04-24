@@ -109,6 +109,17 @@ function updateInputs() {
     p.speed += (target - p.speed) * 0.12;
     if (p.speed < 0.01) p.speed = 0;
   }
+
+  // 串口模式下,任何一路摇起来就自动开始比赛 (不用再按键盘)
+  if (useSerial && state === 'menu') {
+    for (const p of players) {
+      if (p.serialValue > 150) {
+        state = 'racing';
+        startTime = millis();
+        break;
+      }
+    }
+  }
 }
 
 function updatePositions() {
@@ -323,13 +334,23 @@ function drawOverlay() {
     textSize(44);
     text(t('game.title'), CANVAS_W / 2, CANVAS_H / 2 - 70);
     textSize(22);
-    fill(235, 80, 80);
-    text(t('game.p1Mash', { k: 'A' }), CANVAS_W / 2 - 150, CANVAS_H / 2);
-    fill(80, 150, 235);
-    text(t('game.p2Mash', { k: 'L' }), CANVAS_W / 2 + 150, CANVAS_H / 2);
-    textSize(14);
-    fill(180);
-    text(t('game.serialHint'), CANVAS_W / 2, CANVAS_H / 2 + 50);
+    if (useSerial) {
+      fill(235, 80, 80);
+      text(t('game.p1Crank'), CANVAS_W / 2 - 150, CANVAS_H / 2);
+      fill(80, 150, 235);
+      text(t('game.p2Crank'), CANVAS_W / 2 + 150, CANVAS_H / 2);
+      textSize(14);
+      fill(255, 220, 100);
+      text(t('game.crankToStart'), CANVAS_W / 2, CANVAS_H / 2 + 50);
+    } else {
+      fill(235, 80, 80);
+      text(t('game.p1Mash', { k: 'A' }), CANVAS_W / 2 - 150, CANVAS_H / 2);
+      fill(80, 150, 235);
+      text(t('game.p2Mash', { k: 'L' }), CANVAS_W / 2 + 150, CANVAS_H / 2);
+      textSize(14);
+      fill(180);
+      text(t('game.serialHint'), CANVAS_W / 2, CANVAS_H / 2 + 50);
+    }
   } else if (state === 'finished') {
     fill(0, 210);
     rect(0, 0, CANVAS_W, CANVAS_H);
