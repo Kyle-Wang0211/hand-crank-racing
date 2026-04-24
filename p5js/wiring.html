@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>接线图 — 双手摇发电机 × Nano ESP32</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, 'PingFang SC', 'Helvetica Neue', sans-serif;
+    background: #0e141c;
+    color: #e8e8e8;
+    padding: 24px;
+    line-height: 1.55;
+  }
+  .container { max-width: 1360px; margin: 0 auto; }
+  h1 { margin: 0 0 6px; font-size: 24px; font-weight: 600; }
+  h2 { font-size: 18px; margin: 32px 0 12px; color: #ffd24d; }
+  .sub { color: #9aa0a6; margin-bottom: 18px; font-size: 14px; }
+  .legend { display: flex; gap: 22px; flex-wrap: wrap; font-size: 13px; margin-bottom: 14px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .wire { width: 30px; height: 4px; border-radius: 2px; flex-shrink: 0; }
+  .wire.red { background: #e74c3c; }
+  .wire.black { background: #1a1a1a; border: 1px solid #777; }
+  .wire.green { background: #27ae60; }
+  .wire.blue { background: #3498db; }
+  svg { width: 100%; height: auto; background: #1a2230; border-radius: 10px; display: block; }
+  table { border-collapse: collapse; font-size: 13px; margin-top: 8px; width: 100%; }
+  th, td { padding: 8px 12px; border: 1px solid #2a3444; text-align: left; vertical-align: top; }
+  th { background: #1a2230; color: #ffd24d; font-weight: 500; }
+  td code { background: #0e141c; padding: 2px 6px; border-radius: 3px; color: #5fc9ff; font-size: 12px; font-family: 'SF Mono', Menlo, monospace; }
+  .note {
+    background: #2a1a10;
+    border-left: 4px solid #ff9500;
+    padding: 12px 16px;
+    margin-top: 18px;
+    font-size: 13px;
+    border-radius: 4px;
+  }
+  .note strong { color: #ffc04d; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; margin-right: 4px; font-family: monospace; }
+  .pill.r { background: #e74c3c; color: white; }
+  .pill.k { background: #222; color: #ccc; border: 1px solid #666; }
+  .pill.g { background: #27ae60; color: white; }
+  .pill.b { background: #3498db; color: white; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>双手摇发电机 → Arduino Nano ESP32 接线图</h1>
+  <div class="sub">USB 接口朝左 · A0/A1/GND 都在板子的<strong>下侧</strong>(面包板下半部) · 两路独立分压,共地</div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="wire red"></div>红线 = 电机 (+) 正极</div>
+    <div class="legend-item"><div class="wire black"></div>黑线 = GND</div>
+    <div class="legend-item"><div class="wire green"></div>绿线 = 电机1 分压输出 → A0</div>
+    <div class="legend-item"><div class="wire blue"></div>蓝线 = 电机2 分压输出 → A1</div>
+  </div>
+
+  <svg viewBox="0 0 1340 720" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="holerow" patternUnits="userSpaceOnUse" width="20" height="8" x="70" y="0">
+        <circle cx="0" cy="4" r="1.7" fill="#2a2a2a" opacity="0.75"/>
+      </pattern>
+      <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+        <feOffset dx="0" dy="2" result="offset"/>
+        <feComponentTransfer><feFuncA type="linear" slope="0.5"/></feComponentTransfer>
+        <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+
+    <!-- ========== 面包板 ========== -->
+    <rect x="40" y="100" width="900" height="420" rx="8" fill="#f2ead4" stroke="#b8a878" stroke-width="1.5" filter="url(#shadow)"/>
+
+    <!-- 顶部电源条 (不用) -->
+    <line x1="60" y1="118" x2="920" y2="118" stroke="#c0392b" stroke-width="1.2"/>
+    <line x1="60" y1="148" x2="920" y2="148" stroke="#2980b9" stroke-width="1.2"/>
+    <rect x="70" y="126" width="860" height="8" fill="url(#holerow)"/>
+    <rect x="70" y="156" width="860" height="8" fill="url(#holerow)"/>
+
+    <!-- 上半区 a-e -->
+    <rect x="70" y="191" width="860" height="8" fill="url(#holerow)"/>
+    <rect x="70" y="211" width="860" height="8" fill="url(#holerow)"/>
+    <rect x="70" y="231" width="860" height="8" fill="url(#holerow)"/>
+    <rect x="70" y="251" width="860" height="8" fill="url(#holerow)"/>
+    <rect x="70" y="271" width="860" height="8" fill="url(#holerow)"/>
+
+    <!-- 中间槽 -->
+    <rect x="40" y="298" width="900" height="14" fill="#d9cfb5"/>
+
+    <!-- 下半区 f-j -->
+    <rect x="70" y="321" width="860" height="8" fill="url(#holerow)"/>
+    <rect x="70" y="341" width="860" height="8" fill="url(#holerow)"/>
+    <rect x="70" y="361" width="860" height="8" fill="url(#holerow)"/>
+    <rect x="70" y="381" width="860" height="8" fill="url(#holerow)"/>
+    <rect x="70" y="401" width="860" height="8" fill="url(#holerow)"/>
+
+    <!-- 底部电源条 -->
+    <line x1="60" y1="438" x2="920" y2="438" stroke="#2980b9" stroke-width="1.2"/>
+    <rect x="70" y="441" width="860" height="8" fill="url(#holerow)"/>
+    <line x1="60" y1="468" x2="920" y2="468" stroke="#c0392b" stroke-width="1.2"/>
+    <rect x="70" y="471" width="860" height="8" fill="url(#holerow)"/>
+
+    <!-- 行/列标签 -->
+    <g font-family="monospace" font-size="10" fill="#7a6e4a">
+      <text x="54" y="133">+</text><text x="54" y="163">−</text>
+      <text x="54" y="200">a</text><text x="54" y="220">b</text><text x="54" y="240">c</text><text x="54" y="260">d</text><text x="54" y="280">e</text>
+      <text x="54" y="330">f</text><text x="54" y="350">g</text><text x="54" y="370">h</text><text x="54" y="390">i</text><text x="54" y="410">j</text>
+      <text x="54" y="448">−</text><text x="54" y="478">+</text>
+    </g>
+    <g font-family="monospace" font-size="10" fill="#7a6e4a" text-anchor="middle">
+      <text x="70" y="182">1</text><text x="170" y="182">5</text><text x="270" y="182">10</text>
+      <text x="370" y="182">15</text><text x="470" y="182">20</text><text x="570" y="182">25</text><text x="670" y="182">30</text>
+    </g>
+
+    <!-- 下底 GND 轨标签 -->
+    <text x="50" y="434" font-family="sans-serif" font-size="10" fill="#2980b9" text-anchor="end" font-weight="600">GND 轨</text>
+
+    <!-- ========== Nano ESP32 ========== -->
+    <!-- USB-C 接口 -->
+    <rect x="16" y="282" width="42" height="36" fill="#c8c8c8" stroke="#666" rx="2"/>
+    <rect x="10" y="290" width="8" height="20" fill="#888"/>
+    <text x="37" y="304" font-size="8" fill="#333" text-anchor="middle" font-family="monospace">USB-C</text>
+
+    <!-- 板子本体 -->
+    <rect x="58" y="262" width="304" height="76" fill="#0a2e18" stroke="#062010" stroke-width="1" rx="3"/>
+
+    <!-- 板子丝印 -->
+    <text x="210" y="285" font-size="11" fill="#eee" text-anchor="middle" font-family="sans-serif" font-weight="600">Arduino Nano ESP32</text>
+    <text x="210" y="316" font-size="9" fill="#888" text-anchor="middle" font-family="monospace">(USB 朝左)</text>
+
+    <!-- 上排针脚 (row e = D12~D1) -->
+    <g fill="#d4a017">
+      <circle cx="70" cy="275" r="3.2"/><circle cx="90" cy="275" r="3.2"/><circle cx="110" cy="275" r="3.2"/>
+      <circle cx="130" cy="275" r="3.2"/><circle cx="150" cy="275" r="3.2"/><circle cx="170" cy="275" r="3.2"/>
+      <circle cx="190" cy="275" r="3.2"/><circle cx="210" cy="275" r="3.2"/><circle cx="230" cy="275" r="3.2"/>
+      <circle cx="250" cy="275" r="3.2"/><circle cx="270" cy="275" r="3.2"/><circle cx="290" cy="275" r="3.2"/>
+      <circle cx="310" cy="275" r="3.2"/><circle cx="330" cy="275" r="3.2"/><circle cx="350" cy="275" r="3.2"/>
+    </g>
+
+    <!-- 下排针脚 (row f = D13, 3V3, AREF, A0, A1, A2, A3, A4, A5, A6, A7, 5V, RST, GND, VIN) -->
+    <g fill="#d4a017">
+      <circle cx="70" cy="325" r="3.2"/>
+      <circle cx="90" cy="325" r="3.2"/>
+      <circle cx="110" cy="325" r="3.2"/>
+      <circle cx="130" cy="325" r="4" fill="#27ae60"/>   <!-- A0 highlight -->
+      <circle cx="150" cy="325" r="4" fill="#3498db"/>   <!-- A1 highlight -->
+      <circle cx="170" cy="325" r="3.2"/>
+      <circle cx="190" cy="325" r="3.2"/>
+      <circle cx="210" cy="325" r="3.2"/>
+      <circle cx="230" cy="325" r="3.2"/>
+      <circle cx="250" cy="325" r="3.2"/>
+      <circle cx="270" cy="325" r="3.2"/>
+      <circle cx="290" cy="325" r="3.2"/>
+      <circle cx="310" cy="325" r="3.2"/>
+      <circle cx="330" cy="325" r="4" fill="#111" stroke="#fff"/>  <!-- GND highlight -->
+      <circle cx="350" cy="325" r="3.2"/>
+    </g>
+
+    <!-- 下排针脚丝印 (重要的大字体) -->
+    <g font-family="monospace" font-weight="700" text-anchor="middle">
+      <text x="130" y="345" font-size="11" fill="#27ae60">A0</text>
+      <text x="150" y="345" font-size="11" fill="#3498db">A1</text>
+      <text x="330" y="345" font-size="11" fill="#fff">GND</text>
+    </g>
+    <!-- 下排其他针脚丝印 (小字体灰色) -->
+    <g font-family="monospace" font-size="7" fill="#888" text-anchor="middle">
+      <text x="70" y="345">D13</text>
+      <text x="90" y="345">3V3</text>
+      <text x="110" y="345">AREF</text>
+      <text x="170" y="345">A2</text>
+      <text x="190" y="345">A3</text>
+      <text x="210" y="345">A4</text>
+      <text x="230" y="345">A5</text>
+      <text x="250" y="345">A6</text>
+      <text x="270" y="345">A7</text>
+      <text x="290" y="345">5V</text>
+      <text x="310" y="345">RST</text>
+      <text x="350" y="345">VIN</text>
+    </g>
+    <!-- 上排针脚丝印 (很小,灰色) -->
+    <g font-family="monospace" font-size="7" fill="#888" text-anchor="middle">
+      <text x="70" y="258">D12</text><text x="90" y="258">D11</text><text x="110" y="258">D10</text>
+      <text x="130" y="258">D9</text><text x="150" y="258">D8</text><text x="170" y="258">D7</text>
+      <text x="190" y="258">D6</text><text x="210" y="258">D5</text><text x="230" y="258">D4</text>
+      <text x="250" y="258">D3</text><text x="270" y="258">D2</text><text x="290" y="258">GND</text>
+      <text x="310" y="258">RST</text><text x="330" y="258">RX0</text><text x="350" y="258">TX0</text>
+    </g>
+
+    <!-- ========== 电阻 #1 分压器 (列 17-21) ========== -->
+    <!-- 22kΩ #1: col 17 row g ↔ col 19 row g -->
+    <g transform="translate(410, 347)">
+      <line x1="-22" y1="0" x2="-15" y2="0" stroke="#999" stroke-width="1.8"/>
+      <line x1="15" y1="0" x2="22" y2="0" stroke="#999" stroke-width="1.8"/>
+      <rect x="-15" y="-5" width="30" height="10" rx="4" fill="#eed9a0" stroke="#8b7a4a" stroke-width="0.6"/>
+      <rect x="-10" y="-5" width="2.5" height="10" fill="#d63031"/>
+      <rect x="-5" y="-5" width="2.5" height="10" fill="#d63031"/>
+      <rect x="0" y="-5" width="2.5" height="10" fill="#e67e22"/>
+      <rect x="8" y="-5" width="2" height="10" fill="#b8860b"/>
+    </g>
+    <text x="410" y="335" text-anchor="middle" font-size="10" fill="#27ae60" font-family="monospace" font-weight="600">22kΩ #1</text>
+
+    <!-- 3.3kΩ #1: col 19 row h ↔ col 21 row h -->
+    <g transform="translate(450, 367)">
+      <line x1="-22" y1="0" x2="-15" y2="0" stroke="#999" stroke-width="1.8"/>
+      <line x1="15" y1="0" x2="22" y2="0" stroke="#999" stroke-width="1.8"/>
+      <rect x="-15" y="-5" width="30" height="10" rx="4" fill="#eed9a0" stroke="#8b7a4a" stroke-width="0.6"/>
+      <rect x="-10" y="-5" width="2.5" height="10" fill="#e67e22"/>
+      <rect x="-5" y="-5" width="2.5" height="10" fill="#e67e22"/>
+      <rect x="0" y="-5" width="2.5" height="10" fill="#d63031"/>
+      <rect x="8" y="-5" width="2" height="10" fill="#b8860b"/>
+    </g>
+    <text x="495" y="371" font-size="10" fill="#27ae60" font-family="monospace" font-weight="600">3.3kΩ #1</text>
+
+    <!-- ========== 电阻 #2 分压器 (列 23-27) ========== -->
+    <g transform="translate(530, 347)">
+      <line x1="-22" y1="0" x2="-15" y2="0" stroke="#999" stroke-width="1.8"/>
+      <line x1="15" y1="0" x2="22" y2="0" stroke="#999" stroke-width="1.8"/>
+      <rect x="-15" y="-5" width="30" height="10" rx="4" fill="#eed9a0" stroke="#8b7a4a" stroke-width="0.6"/>
+      <rect x="-10" y="-5" width="2.5" height="10" fill="#d63031"/>
+      <rect x="-5" y="-5" width="2.5" height="10" fill="#d63031"/>
+      <rect x="0" y="-5" width="2.5" height="10" fill="#e67e22"/>
+      <rect x="8" y="-5" width="2" height="10" fill="#b8860b"/>
+    </g>
+    <text x="530" y="335" text-anchor="middle" font-size="10" fill="#3498db" font-family="monospace" font-weight="600">22kΩ #2</text>
+
+    <g transform="translate(570, 367)">
+      <line x1="-22" y1="0" x2="-15" y2="0" stroke="#999" stroke-width="1.8"/>
+      <line x1="15" y1="0" x2="22" y2="0" stroke="#999" stroke-width="1.8"/>
+      <rect x="-15" y="-5" width="30" height="10" rx="4" fill="#eed9a0" stroke="#8b7a4a" stroke-width="0.6"/>
+      <rect x="-10" y="-5" width="2.5" height="10" fill="#e67e22"/>
+      <rect x="-5" y="-5" width="2.5" height="10" fill="#e67e22"/>
+      <rect x="0" y="-5" width="2.5" height="10" fill="#d63031"/>
+      <rect x="8" y="-5" width="2" height="10" fill="#b8860b"/>
+    </g>
+    <text x="615" y="371" font-size="10" fill="#3498db" font-family="monospace" font-weight="600">3.3kΩ #2</text>
+
+    <!-- ========== 跳线 ========== -->
+
+    <!-- 绿线: 分压器#1 中点 (col 19 row i) → Nano A0 (col 4 row i) -->
+    <circle cx="430" cy="385" r="3.5" fill="#27ae60"/>
+    <path d="M 430 385 L 130 385" stroke="#27ae60" stroke-width="2.8" fill="none"/>
+    <circle cx="130" cy="385" r="3.5" fill="#27ae60"/>
+
+    <!-- 蓝线: 分压器#2 中点 (col 25 row j) → Nano A1 (col 5 row j) -->
+    <circle cx="550" cy="405" r="3.5" fill="#3498db"/>
+    <path d="M 550 405 L 150 405" stroke="#3498db" stroke-width="2.8" fill="none"/>
+    <circle cx="150" cy="405" r="3.5" fill="#3498db"/>
+
+    <!-- 黑线: Nano GND (col 14 row g) → 底部 GND 轨 -->
+    <circle cx="330" cy="345" r="3.5" fill="#1a1a1a" stroke="#fff" stroke-width="0.6"/>
+    <path d="M 330 345 L 330 445" stroke="#1a1a1a" stroke-width="2.8" fill="none"/>
+    <circle cx="330" cy="445" r="3.5" fill="#1a1a1a" stroke="#fff" stroke-width="0.6"/>
+
+    <!-- 黑线: 分压器#1 的 3.3kΩ 下端 (col 21 row i) → GND 轨 -->
+    <circle cx="470" cy="385" r="3.5" fill="#1a1a1a" stroke="#fff" stroke-width="0.6"/>
+    <path d="M 470 385 L 470 445" stroke="#1a1a1a" stroke-width="2.8" fill="none"/>
+    <circle cx="470" cy="445" r="3.5" fill="#1a1a1a" stroke="#fff" stroke-width="0.6"/>
+
+    <!-- 黑线: 分压器#2 的 3.3kΩ 下端 (col 27 row i) → GND 轨 -->
+    <circle cx="590" cy="385" r="3.5" fill="#1a1a1a" stroke="#fff" stroke-width="0.6"/>
+    <path d="M 590 385 L 590 445" stroke="#1a1a1a" stroke-width="2.8" fill="none"/>
+    <circle cx="590" cy="445" r="3.5" fill="#1a1a1a" stroke="#fff" stroke-width="0.6"/>
+
+    <!-- ========== 电机1 ========== -->
+    <g transform="translate(1120, 230)">
+      <circle cx="0" cy="0" r="50" fill="#6c6c6c" stroke="#333" stroke-width="2"/>
+      <circle cx="0" cy="0" r="38" fill="#888" stroke="#555" stroke-width="1"/>
+      <text x="0" y="6" text-anchor="middle" fill="#fff" font-size="20" font-weight="700">M1</text>
+      <g transform="rotate(35)" opacity="0.9">
+        <rect x="0" y="-3" width="52" height="6" fill="#2a2a2a" rx="2"/>
+        <circle cx="52" cy="0" r="7" fill="#1a1a1a"/>
+        <circle cx="52" cy="0" r="3" fill="#444"/>
+      </g>
+      <rect x="-18" y="48" width="10" height="14" fill="#e74c3c" rx="1"/>
+      <rect x="8" y="48" width="10" height="14" fill="#1a1a1a" rx="1"/>
+      <text x="-13" y="74" text-anchor="middle" font-size="10" fill="#e74c3c" font-weight="700">+</text>
+      <text x="13" y="74" text-anchor="middle" font-size="10" fill="#aaa" font-weight="700">−</text>
+    </g>
+    <text x="1120" y="165" text-anchor="middle" font-size="14" fill="#e74c3c" font-weight="600">手摇发电机 1</text>
+
+    <!-- 电机1 红线 → col 17 row f (390, 325) -->
+    <path d="M 1107 298 C 900 320, 700 280, 390 325" stroke="#e74c3c" stroke-width="2.8" fill="none"/>
+    <circle cx="390" cy="325" r="3.5" fill="#e74c3c"/>
+
+    <!-- 电机1 黑线 → GND 轨 -->
+    <path d="M 1133 298 C 1200 350, 1100 480, 700 445" stroke="#1a1a1a" stroke-width="2.8" fill="none"/>
+    <circle cx="700" cy="445" r="3.5" fill="#1a1a1a" stroke="#fff" stroke-width="0.6"/>
+
+    <!-- ========== 电机2 ========== -->
+    <g transform="translate(1120, 500)">
+      <circle cx="0" cy="0" r="50" fill="#6c6c6c" stroke="#333" stroke-width="2"/>
+      <circle cx="0" cy="0" r="38" fill="#888" stroke="#555" stroke-width="1"/>
+      <text x="0" y="6" text-anchor="middle" fill="#fff" font-size="20" font-weight="700">M2</text>
+      <g transform="rotate(-30)" opacity="0.9">
+        <rect x="0" y="-3" width="52" height="6" fill="#2a2a2a" rx="2"/>
+        <circle cx="52" cy="0" r="7" fill="#1a1a1a"/>
+        <circle cx="52" cy="0" r="3" fill="#444"/>
+      </g>
+      <rect x="-18" y="-62" width="10" height="14" fill="#e74c3c" rx="1"/>
+      <rect x="8" y="-62" width="10" height="14" fill="#1a1a1a" rx="1"/>
+      <text x="-13" y="-68" text-anchor="middle" font-size="10" fill="#e74c3c" font-weight="700">+</text>
+      <text x="13" y="-68" text-anchor="middle" font-size="10" fill="#aaa" font-weight="700">−</text>
+    </g>
+    <text x="1120" y="580" text-anchor="middle" font-size="14" fill="#3498db" font-weight="600">手摇发电机 2</text>
+
+    <!-- 电机2 红线 → col 23 row f (510, 325) -->
+    <path d="M 1107 432 C 900 400, 700 380, 510 325" stroke="#e74c3c" stroke-width="2.8" fill="none"/>
+    <circle cx="510" cy="325" r="3.5" fill="#e74c3c"/>
+
+    <!-- 电机2 黑线 → GND 轨 -->
+    <path d="M 1133 432 C 1200 470, 1100 460, 820 445" stroke="#1a1a1a" stroke-width="2.8" fill="none"/>
+    <circle cx="820" cy="445" r="3.5" fill="#1a1a1a" stroke="#fff" stroke-width="0.6"/>
+
+    <!-- ========== 区域标注 ========== -->
+    <g font-family="sans-serif" font-size="11" text-anchor="middle">
+      <text x="440" y="520" fill="#27ae60" font-weight="600">◀ 分压器 #1 (列 17–21) ▶</text>
+      <text x="560" y="540" fill="#3498db" font-weight="600">◀ 分压器 #2 (列 23–27) ▶</text>
+    </g>
+
+  </svg>
+
+  <h2>接线清单</h2>
+  <p style="font-size:13px;color:#aaa;margin:0 0 8px;">以"列号+行号"定位面包板孔位。同列 a-e 互通,同列 f-j 互通,蓝轨整条互通。</p>
+  <table>
+    <tr><th>#</th><th>类型</th><th>颜色</th><th>一端</th><th>另一端</th><th>说明</th></tr>
+
+    <tr>
+      <td>1</td><td>电阻 22kΩ</td><td><span class="pill">红红橙金</span></td>
+      <td><code>列 17 行 g</code></td><td><code>列 19 行 g</code></td>
+      <td>分压器 #1 的 R1 (上端)</td>
+    </tr>
+    <tr>
+      <td>2</td><td>电阻 3.3kΩ</td><td><span class="pill">橙橙红金</span></td>
+      <td><code>列 19 行 h</code></td><td><code>列 21 行 h</code></td>
+      <td>分压器 #1 的 R2 (下端)</td>
+    </tr>
+    <tr>
+      <td>3</td><td>跳线</td><td><span class="pill g">绿</span></td>
+      <td><code>列 19 行 i</code></td><td><code>列 4 行 i</code> (=A0)</td>
+      <td>分压器 #1 中点 → A0</td>
+    </tr>
+    <tr>
+      <td>4</td><td>跳线</td><td><span class="pill k">黑</span></td>
+      <td><code>列 21 行 i</code></td><td>底部 GND 蓝轨</td>
+      <td>R2 下端 → GND</td>
+    </tr>
+
+    <tr>
+      <td>5</td><td>电阻 22kΩ</td><td><span class="pill">红红橙金</span></td>
+      <td><code>列 23 行 g</code></td><td><code>列 25 行 g</code></td>
+      <td>分压器 #2 的 R1</td>
+    </tr>
+    <tr>
+      <td>6</td><td>电阻 3.3kΩ</td><td><span class="pill">橙橙红金</span></td>
+      <td><code>列 25 行 h</code></td><td><code>列 27 行 h</code></td>
+      <td>分压器 #2 的 R2</td>
+    </tr>
+    <tr>
+      <td>7</td><td>跳线</td><td><span class="pill b">蓝</span></td>
+      <td><code>列 25 行 j</code></td><td><code>列 5 行 j</code> (=A1)</td>
+      <td>分压器 #2 中点 → A1</td>
+    </tr>
+    <tr>
+      <td>8</td><td>跳线</td><td><span class="pill k">黑</span></td>
+      <td><code>列 27 行 i</code></td><td>底部 GND 蓝轨</td>
+      <td>R2 下端 → GND</td>
+    </tr>
+
+    <tr>
+      <td>9</td><td>跳线</td><td><span class="pill k">黑</span></td>
+      <td><code>列 14 行 g</code> (=Nano GND)</td><td>底部 GND 蓝轨</td>
+      <td>Nano 公共地</td>
+    </tr>
+
+    <tr>
+      <td>10</td><td>电机1 引线</td><td><span class="pill r">红</span></td>
+      <td>电机1 (+)</td><td><code>列 17 行 f</code></td>
+      <td>分压器 #1 输入端</td>
+    </tr>
+    <tr>
+      <td>11</td><td>电机1 引线</td><td><span class="pill k">黑</span></td>
+      <td>电机1 (−)</td><td>底部 GND 蓝轨</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>12</td><td>电机2 引线</td><td><span class="pill r">红</span></td>
+      <td>电机2 (+)</td><td><code>列 23 行 f</code></td>
+      <td>分压器 #2 输入端</td>
+    </tr>
+    <tr>
+      <td>13</td><td>电机2 引线</td><td><span class="pill k">黑</span></td>
+      <td>电机2 (−)</td><td>底部 GND 蓝轨</td>
+      <td></td>
+    </tr>
+  </table>
+
+  <div class="note">
+    <strong>⚠️ 上电前最后检查:</strong><br>
+    • 对照丝印确认板子上的 <code style="background:#000;padding:1px 4px;color:#27ae60">A0</code> / <code style="background:#000;padding:1px 4px;color:#3498db">A1</code> / <code style="background:#000;padding:1px 4px;color:#fff">GND</code> 针脚确实落在面包板 <strong>列 4 / 列 5 / 列 14</strong> 的下排 (row f)。如果你的板子朝向反了,图里的列号要镜像。<br>
+    • 22kΩ (红红橙金) 在上,3.3kΩ (橙橙红金) 在下。如果对调就会让 A0 直接接近电机电压 → <strong>烧芯片</strong>。<br>
+    • 所有 GND(电机(-)、两个 3.3kΩ 的下端、Nano 的 GND)<strong>都在同一条蓝轨</strong>。<br>
+    • 没有齐纳二极管保护,<strong>别狂摇</strong>。正常匀速摇没问题(通常 5–15V),用尽全力可能短暂超 25V。
+  </div>
+
+  <div style="font-size:12px;color:#666;margin-top:20px;text-align:center;">
+    面包板布局图 · 用浏览器缩放或截图保存 ·
+    <a href="/" style="color:#5fc9ff;">回到游戏</a>
+  </div>
+</div>
+</body>
+</html>

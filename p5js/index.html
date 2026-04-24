@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <title>手摇发电 双人赛跑 / Hand-Crank Racing</title>
+  <link rel="stylesheet" href="style.css?v=4">
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+</head>
+<body>
+  <div id="ui">
+    <button id="connectBtn">连接 Arduino (可选)</button>
+    <span id="status">未连接 — 玩家1 按 <kbd>A</kbd>,玩家2 按 <kbd>L</kbd></span>
+    <div class="spacer"></div>
+    <div class="lang-toggle">
+      <button class="lang-btn" data-lang="zh">中</button>
+      <button class="lang-btn" data-lang="en">EN</button>
+    </div>
+  </div>
+  <main id="game"></main>
+  <script src="i18n.js?v=4"></script>
+  <script src="serial.js?v=4"></script>
+  <script src="sketch.js?v=4"></script>
+</body>
+</html>
