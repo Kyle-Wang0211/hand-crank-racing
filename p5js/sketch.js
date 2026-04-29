@@ -1,7 +1,7 @@
 // 手摇发电 双人赛跑
-// 两个玩家,各一条赛道
+// 状态机: lobby (准备) → countdown (3-2-1) → racing (比赛) → finished (排名)
 // 输入:
-//   键盘: 玩家1 = A 键, 玩家2 = L 键 (按键频率模拟摇速)
+//   键盘: 玩家1 = A 键, 玩家2 = L 键
 //   串口: Arduino 读两路模拟值,发 "val1,val2\n"
 // 所有可见文字走 t() 函数以支持中英切换
 
@@ -14,8 +14,14 @@ const TRACK_GAP = 10;
 const CRANK_WINDOW_MS = 1000;
 const MAX_CRANK_RATE = 8;
 const SERIAL_MAX = 1000;
-const SERIAL_MIN_TO_MOVE = 300;   // 串口值低于此 = 视为静止 (游戏端二次过滤)
-const SERIAL_STALE_MS = 600;      // 超过此时长没收到数据 = 视为 0
+const SERIAL_MIN_TO_MOVE = 300;
+const SERIAL_STALE_MS = 600;
+const READY_CRANK_THRESHOLD = 500;   // 串口模式下,摇得超过此值即视为"准备好"
+const COUNTDOWN_MS = 3000;            // 3 秒倒数
+
+// 排名时认为"并列"的容差
+const TIE_TIME_MS = 200;              // 完赛时间差 < 200ms = 并列
+const TIE_DIST_PX = 80;               // 距离差 < 80 像素 = 并列
 
 const PLAYER_DEFS = [
   { id: 0, nameKey: 'label.player1', color: [235, 80, 80],  key: 'a', keyLabel: 'A' },
@@ -25,10 +31,10 @@ const PLAYER_DEFS = [
 let arduino;
 let useSerial = false;
 let players = [];
-let state = 'menu';          // menu | racing | finished
+let state = 'lobby';                  // lobby | countdown | racing | finished
 let startTime = 0;
+let countdownStartTime = 0;
 
-// 当前状态栏的 i18n 键 (语言切换时重新渲染)
 let currentStatusKey = 'ui.notConnected';
 let currentStatusParams = { k1: 'A', k2: 'L' };
 let lastSerialUpdate = 0;
@@ -66,7 +72,6 @@ function setup() {
     }
   });
 
-  // 初始状态栏渲染 (用当前语言)
   setStatus('ui.notConnected', { k1: 'A', k2: 'L' });
 }
 
@@ -80,16 +85,26 @@ function resetGame() {
     serialValue: 0,
     finished: false,
     finishTime: 0,
-    place: 0,
+    ready: false,
   }));
-  state = 'menu';
+  state = 'lobby';
   startTime = 0;
+  countdownStartTime = 0;
 }
 
 function draw() {
   background(12, 15, 25);
+
   updateInputs();
-  if (state === 'racing') updatePositions();
+
+  if (state === 'lobby') {
+    updateLobby();
+  } else if (state === 'countdown') {
+    updateCountdown();
+  } else if (state === 'racing') {
+    updatePositions();
+  }
+
   drawTracks();
   drawHUD();
   drawOverlay();
@@ -101,7 +116,7 @@ function draw() {
 function updateInputs() {
   const now = millis();
 
-  // 陈旧检测: 超过阈值没收到新数据 = 当前电机都视为 0
+  // 串口陈旧检测
   const serialStale = useSerial && (now - lastSerialUpdate > SERIAL_STALE_MS);
   if (serialStale) {
     for (const p of players) p.serialValue = 0;
@@ -113,10 +128,6 @@ function updateInputs() {
 
     let target;
     if (useSerial) {
-      // 映射曲线:
-      //   < 300  → 0     (静止)
-      //   300    → 5     (一到门槛直接快走,不磨磨蹭蹭)
-      //   1000   → 10    (全力摇 = 冲刺)
       if (p.serialValue < SERIAL_MIN_TO_MOVE) {
         target = 0;
       } else {
@@ -130,25 +141,27 @@ function updateInputs() {
   }
 }
 
-// 开始按钮的位置 (菜单和结束状态共用) — 用于点击检测和绘制
-function startButtonRect() {
-  return { x: CANVAS_W / 2, y: CANVAS_H / 2 + 90, w: 240, h: 64 };
+function updateLobby() {
+  // 串口模式下: 摇得猛 → 自动准备
+  if (useSerial) {
+    for (const p of players) {
+      if (p.serialValue > READY_CRANK_THRESHOLD) p.ready = true;
+    }
+  }
+  // 全员就绪 → 进入倒数
+  if (players.every(p => p.ready)) {
+    state = 'countdown';
+    countdownStartTime = millis();
+    // 清干净倒数前积累的键盘按键
+    for (const p of players) p.presses = [];
+  }
 }
 
-function isInButton(mx, my, r) {
-  return mx > r.x - r.w / 2 && mx < r.x + r.w / 2 &&
-         my > r.y - r.h / 2 && my < r.y + r.h / 2;
-}
-
-function mousePressed() {
-  const btn = startButtonRect();
-  if (state === 'menu' && isInButton(mouseX, mouseY, btn)) {
+function updateCountdown() {
+  if (millis() - countdownStartTime >= COUNTDOWN_MS) {
     state = 'racing';
     startTime = millis();
-    // 清掉菜单期间积累的键盘按键,避免误开局后还带着速度
     for (const p of players) p.presses = [];
-  } else if (state === 'finished' && isInButton(mouseX, mouseY, btn)) {
-    resetGame();
   }
 }
 
@@ -160,7 +173,6 @@ function updatePositions() {
       p.distance = TRACK_LENGTH;
       p.finished = true;
       p.finishTime = millis();
-      p.place = players.filter(q => q.finished).length;
     }
   }
 }
@@ -176,12 +188,11 @@ function keyPressed(event) {
   const k = (event && event.key ? event.key : key).toLowerCase();
 
   for (const p of players) {
-    if (k === p.key && !p.finished) {
-      p.presses.push(millis());
-      // 键盘模式下,按 A/L 可以直接开始(不用点按钮);串口模式强制点按钮
-      if (state === 'menu' && !useSerial) {
-        state = 'racing';
-        startTime = millis();
+    if (k === p.key) {
+      if (state === 'lobby') {
+        p.ready = true;
+      } else if (state === 'racing' && !p.finished) {
+        p.presses.push(millis());
       }
     }
   }
@@ -189,7 +200,79 @@ function keyPressed(event) {
   return false;
 }
 
-// --- drawing -----------------------------------------------------
+function mousePressed() {
+  if (state === 'lobby') {
+    const cards = lobbyCardRects();
+    for (let i = 0; i < cards.length; i++) {
+      if (isInRect(mouseX, mouseY, cards[i])) {
+        players[i].ready = true;
+      }
+    }
+  } else if (state === 'finished') {
+    if (isInButton(mouseX, mouseY, retryButtonRect())) resetGame();
+  }
+}
+
+// --- 几何工具 -----------------------------------------------------
+
+function lobbyCardRects() {
+  const cardW = 320, cardH = 320, gap = 60;
+  const totalW = cardW * 2 + gap;
+  const startX = (CANVAS_W - totalW) / 2;
+  const cardY = 130;
+  return [0, 1].map(i => ({
+    x: startX + i * (cardW + gap),
+    y: cardY,
+    w: cardW,
+    h: cardH,
+  }));
+}
+
+function retryButtonRect() {
+  return { x: CANVAS_W / 2, y: CANVAS_H - 60, w: 240, h: 56 };
+}
+
+function isInButton(mx, my, r) {
+  return mx > r.x - r.w / 2 && mx < r.x + r.w / 2 &&
+         my > r.y - r.h / 2 && my < r.y + r.h / 2;
+}
+
+function isInRect(mx, my, r) {
+  return mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
+}
+
+// --- 排名计算 (允许并列) -----------------------------------------
+
+// items: 玩家列表
+// getValue: (player) => number 排序值
+// direction: 'asc' (越小越好) 或 'desc' (越大越好)
+// tie: 容差,差距小于此视为并列
+// 返回: [{ player, rank, tied }] 已按排名顺序排列
+function computeRanking(items, getValue, direction, tie) {
+  const sorted = [...items].map(p => ({ player: p, value: getValue(p) }));
+  if (direction === 'asc') sorted.sort((a, b) => a.value - b.value);
+  else sorted.sort((a, b) => b.value - a.value);
+
+  const result = [];
+  let rank = 1;
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && Math.abs(sorted[i].value - sorted[i - 1].value) > tie) {
+      rank = i + 1;
+    }
+    result.push({ player: sorted[i].player, rank, value: sorted[i].value });
+  }
+  // 标记并列
+  const counts = {};
+  result.forEach(e => counts[e.rank] = (counts[e.rank] || 0) + 1);
+  result.forEach(e => e.tied = counts[e.rank] > 1);
+  return result;
+}
+
+function rankMedal(rank) {
+  return ['🥇', '🥈', '🥉'][rank - 1] || `#${rank}`;
+}
+
+// --- 绘制 --------------------------------------------------------
 
 function drawTracks() {
   for (let i = 0; i < players.length; i++) {
@@ -200,7 +283,6 @@ function drawTracks() {
 
 function drawOneTrack(p, yTop) {
   const h = TRACK_H;
-
   noStroke();
   fill(p.color[0] * 0.12, p.color[1] * 0.12, p.color[2] * 0.25 + 25);
   rect(0, yTop, CANVAS_W, h);
@@ -214,7 +296,6 @@ function drawOneTrack(p, yTop) {
 
   fill(60, 110, 60);
   rect(-100, groundY, TRACK_LENGTH + CANVAS_W + 400, h * 0.42);
-
   fill(180, 100, 60);
   rect(-100, groundY + 20, TRACK_LENGTH + CANVAS_W + 400, 90);
 
@@ -247,7 +328,7 @@ function drawOneTrack(p, yTop) {
 
   pop();
 
-  // 屏幕坐标: 标签 + 进度条
+  // 屏幕坐标 HUD
   fill(p.color[0], p.color[1], p.color[2]);
   textSize(17);
   textAlign(LEFT, TOP);
@@ -257,12 +338,12 @@ function drawOneTrack(p, yTop) {
   textSize(12);
   const distTxt = min(p.distance, TRACK_LENGTH).toFixed(0);
   text(
-    `${distTxt} / ${TRACK_LENGTH}   ${t('label.speed')} ${p.speed.toFixed(1)}   ${t('label.crankRate')} ${p.crankRate}/s`,
+    `${distTxt} / ${TRACK_LENGTH}   ${t('label.speed')} ${p.speed.toFixed(1)}`,
     130, yTop + 14
   );
   if (useSerial) {
     fill(100, 200, 255);
-    text(`${t('label.serial')} ${p.serialValue.toFixed(0)}`, 430, yTop + 14);
+    text(`${t('label.serial')} ${p.serialValue.toFixed(0)}`, 360, yTop + 14);
   }
 
   const barX = CANVAS_W - 200, barY = yTop + 14, barW = 180, barH = 12;
@@ -276,9 +357,7 @@ function drawOneTrack(p, yTop) {
     fill(255, 220, 0);
     textSize(13);
     textAlign(RIGHT, TOP);
-    const medal = p.place === 1 ? '🥇' : '🥈';
-    text(`${medal} ${((p.finishTime - startTime) / 1000).toFixed(2)}s`,
-         barX - 8, yTop + 12);
+    text(`✓ ${((p.finishTime - startTime) / 1000).toFixed(2)}s`, barX - 8, yTop + 12);
   }
 }
 
@@ -337,8 +416,10 @@ function drawHUD() {
   textSize(14);
   textAlign(LEFT, CENTER);
 
-  if (state === 'menu') {
-    text(t('game.startAny'), 16, HUD_H / 2);
+  if (state === 'lobby') {
+    text(t('lobby.title'), 16, HUD_H / 2);
+  } else if (state === 'countdown') {
+    text(t('countdown.title'), 16, HUD_H / 2);
   } else if (state === 'racing') {
     const elapsed = (millis() - startTime) / 1000;
     text(`${t('game.racing')}   ${elapsed.toFixed(2)}s`, 16, HUD_H / 2);
@@ -357,79 +438,256 @@ function drawHUD() {
 }
 
 function drawOverlay() {
-  if (state === 'menu') {
-    fill(0, 210);
-    rect(0, 0, CANVAS_W, CANVAS_H);
-    textAlign(CENTER, CENTER);
-    fill(255);
-    textSize(44);
-    text(t('game.title'), CANVAS_W / 2, CANVAS_H / 2 - 90);
-    textSize(20);
-    if (useSerial) {
-      fill(235, 80, 80);
-      text(t('game.p1Crank'), CANVAS_W / 2 - 150, CANVAS_H / 2 - 20);
-      fill(80, 150, 235);
-      text(t('game.p2Crank'), CANVAS_W / 2 + 150, CANVAS_H / 2 - 20);
-    } else {
-      fill(235, 80, 80);
-      text(t('game.p1Mash', { k: 'A' }), CANVAS_W / 2 - 150, CANVAS_H / 2 - 20);
-      fill(80, 150, 235);
-      text(t('game.p2Mash', { k: 'L' }), CANVAS_W / 2 + 150, CANVAS_H / 2 - 20);
-    }
-    drawStartButton(t('game.startBtn'));
+  if (state === 'lobby') {
+    drawLobby();
+  } else if (state === 'countdown') {
+    drawCountdown();
   } else if (state === 'finished') {
-    fill(0, 210);
-    rect(0, 0, CANVAS_W, CANVAS_H);
-    textAlign(CENTER, CENTER);
-
-    const sorted = [...players].sort((a, b) => a.finishTime - b.finishTime);
-    const winner = sorted[0];
-
-    fill(255, 220, 0);
-    textSize(52);
-    text(`🏆 ${t(winner.nameKey)} ${t('game.winnerSuffix')}`,
-         CANVAS_W / 2, CANVAS_H / 2 - 90);
-
-    let y = CANVAS_H / 2 - 10;
-    textSize(22);
-    for (let i = 0; i < sorted.length; i++) {
-      const p = sorted[i];
-      fill(p.color);
-      const medal = i === 0 ? '🥇' : '🥈';
-      text(`${medal}  ${t(p.nameKey)}   ${((p.finishTime - startTime) / 1000).toFixed(2)}s`,
-           CANVAS_W / 2, y);
-      y += 36;
-    }
-
-    drawStartButton(t('game.retryBtn'));
+    drawFinished();
   }
 }
 
-// 在菜单/结束状态绘制一个可点击的按钮
-function drawStartButton(label) {
-  const btn = startButtonRect();
-  const hovering = isInButton(mouseX, mouseY, btn);
+// --- Lobby (准备界面) --------------------------------------------
+
+function drawLobby() {
+  fill(0, 220);
+  rect(0, 0, CANVAS_W, CANVAS_H);
+
+  textAlign(CENTER, CENTER);
+  fill(255);
+  textSize(40);
+  textStyle(BOLD);
+  text(t('game.title'), CANVAS_W / 2, 70);
+  textStyle(NORMAL);
+
+  const cards = lobbyCardRects();
+  let isHovering = false;
+
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    const r = cards[i];
+    const ready = p.ready;
+    const hover = !ready && isInRect(mouseX, mouseY, r);
+    if (hover) isHovering = true;
+
+    // 卡片底色
+    push();
+    if (ready) {
+      fill(40, 160, 60, 230);
+      stroke(80, 220, 100);
+      strokeWeight(3);
+    } else if (hover) {
+      fill(50, 50, 70, 230);
+      stroke(p.color[0], p.color[1], p.color[2]);
+      strokeWeight(2);
+    } else {
+      fill(35, 35, 50, 230);
+      stroke(p.color[0] * 0.5, p.color[1] * 0.5, p.color[2] * 0.5);
+      strokeWeight(2);
+    }
+    rect(r.x, r.y, r.w, r.h, 14);
+    pop();
+
+    noStroke();
+    // 玩家名
+    fill(p.color);
+    textSize(28);
+    textStyle(BOLD);
+    text(t(p.nameKey), r.x + r.w / 2, r.y + 50);
+    textStyle(NORMAL);
+
+    // 小人
+    push();
+    drawRunner(p, r.x + r.w / 2, r.y + 130);
+    pop();
+
+    // 状态
+    if (ready) {
+      fill(255);
+      textSize(34);
+      textStyle(BOLD);
+      text(t('lobby.readyOK'), r.x + r.w / 2, r.y + 250);
+      textStyle(NORMAL);
+    } else {
+      // 准备方式提示
+      fill(255, 220, 100);
+      textSize(20);
+      textStyle(BOLD);
+      text(t('lobby.clickToReady'), r.x + r.w / 2, r.y + 240);
+      textStyle(NORMAL);
+
+      fill(180);
+      textSize(13);
+      const hint = useSerial
+        ? t('lobby.orCrank', { k: p.keyLabel })
+        : t('lobby.orKey', { k: p.keyLabel });
+      text(hint, r.x + r.w / 2, r.y + 270);
+    }
+  }
+
+  // 全屏底部提示
+  fill(180);
+  textSize(15);
+  const allReady = players.every(p => p.ready);
+  if (allReady) {
+    fill(100, 230, 120);
+    textSize(18);
+    textStyle(BOLD);
+    text(t('lobby.allReady'), CANVAS_W / 2, CANVAS_H - 40);
+    textStyle(NORMAL);
+  } else {
+    text(t('lobby.waiting'), CANVAS_W / 2, CANVAS_H - 40);
+  }
+
+  cursor(isHovering ? HAND : ARROW);
+}
+
+// --- Countdown (3-2-1-GO) ---------------------------------------
+
+function drawCountdown() {
+  fill(0, 230);
+  rect(0, 0, CANVAS_W, CANVAS_H);
+
+  const elapsed = millis() - countdownStartTime;
+  const remaining = (COUNTDOWN_MS - elapsed) / 1000;
+
+  let label, color;
+  if (remaining > 2) { label = '3'; color = [255, 100, 100]; }
+  else if (remaining > 1) { label = '2'; color = [255, 200, 100]; }
+  else if (remaining > 0) { label = '1'; color = [255, 240, 100]; }
+  else { label = t('countdown.go'); color = [100, 240, 120]; }
+
+  // 数字弹动效果: 一秒内从 1 跌到 0,然后回到 1
+  const subPhase = remaining > 0 ? (1 - (remaining % 1)) : 0;
+  const scale = 0.7 + (1 - subPhase) * 0.6;
+
+  push();
+  translate(CANVAS_W / 2, CANVAS_H / 2);
+  scale(scale);
+  textAlign(CENTER, CENTER);
+  fill(color[0], color[1], color[2]);
+  textSize(180);
+  textStyle(BOLD);
+  text(label, 0, 0);
+  textStyle(NORMAL);
+  pop();
+
+  cursor(ARROW);
+}
+
+// --- Finished (双排名) ------------------------------------------
+
+function drawFinished() {
+  fill(0, 220);
+  rect(0, 0, CANVAS_W, CANVAS_H);
+
+  textAlign(CENTER, CENTER);
+  fill(255, 220, 0);
+  textSize(40);
+  textStyle(BOLD);
+  text(`🏁 ${t('game.finished')}`, CANVAS_W / 2, 50);
+  textStyle(NORMAL);
+
+  // 计算两个排名
+  const byTime = computeRanking(
+    players,
+    p => p.finished ? (p.finishTime - startTime) : Infinity,
+    'asc',
+    TIE_TIME_MS
+  );
+  const byDist = computeRanking(
+    players,
+    p => p.distance,
+    'desc',
+    TIE_DIST_PX
+  );
+
+  // 排名块布局: 左右两列
+  const colY = 110;
+  const colW = 380;
+  const gap = 40;
+  const totalW = colW * 2 + gap;
+  const colXLeft = (CANVAS_W - totalW) / 2;
+  const colXRight = colXLeft + colW + gap;
+
+  drawRankColumn(colXLeft, colY, colW, t('rank.byTime'), byTime, e => {
+    if (!e.player.finished) return t('rank.dnf');
+    return `${(e.value / 1000).toFixed(2)}s`;
+  });
+
+  drawRankColumn(colXRight, colY, colW, t('rank.byDistance'), byDist, e => {
+    return `${e.value.toFixed(0)} / ${TRACK_LENGTH}`;
+  });
+
+  // 重玩按钮
+  const hover = isInButton(mouseX, mouseY, retryButtonRect());
+  drawRetryButton(t('game.retryBtn'), hover);
+  cursor(hover ? HAND : ARROW);
+}
+
+function drawRankColumn(x, y, w, title, ranking, formatValue) {
+  // 标题
+  fill(150, 220, 255);
+  textSize(20);
+  textStyle(BOLD);
+  textAlign(CENTER, TOP);
+  text(title, x + w / 2, y);
+  textStyle(NORMAL);
+
+  // 每一行
+  let rowY = y + 50;
+  textAlign(LEFT, CENTER);
+  for (const entry of ranking) {
+    const p = entry.player;
+    const rowH = 60;
+
+    // 行底色
+    fill(p.color[0], p.color[1], p.color[2], 35);
+    rect(x, rowY, w, rowH, 8);
+
+    // 排名徽章
+    fill(255);
+    textSize(28);
+    textAlign(CENTER, CENTER);
+    text(rankMedal(entry.rank), x + 35, rowY + rowH / 2);
+
+    // 玩家名
+    fill(p.color);
+    textSize(20);
+    textStyle(BOLD);
+    textAlign(LEFT, CENTER);
+    let nameText = t(p.nameKey);
+    if (entry.tied) nameText += `  (${t('rank.tied')})`;
+    text(nameText, x + 75, rowY + rowH / 2);
+    textStyle(NORMAL);
+
+    // 数值
+    fill(230);
+    textSize(18);
+    textAlign(RIGHT, CENTER);
+    text(formatValue(entry), x + w - 18, rowY + rowH / 2);
+
+    rowY += rowH + 10;
+  }
+}
+
+function drawRetryButton(label, hover) {
+  const btn = retryButtonRect();
   push();
   rectMode(CENTER);
   noStroke();
-  fill(hovering ? 50 : 40, hovering ? 200 : 170, hovering ? 80 : 70);
+  fill(hover ? 50 : 40, hover ? 200 : 170, hover ? 80 : 70);
   rect(btn.x, btn.y, btn.w, btn.h, 10);
   fill(255);
   textAlign(CENTER, CENTER);
-  textSize(22);
+  textSize(20);
   textStyle(BOLD);
   text(label, btn.x, btn.y);
   textStyle(NORMAL);
   pop();
-  // 鼠标指针
-  if (hovering) {
-    cursor(HAND);
-  } else {
-    cursor(ARROW);
-  }
 }
 
-// --- status helpers (i18n-aware) ---------------------------------
+// --- 状态栏 (DOM,i18n-aware) ------------------------------------
 
 function setStatus(key, params = {}) {
   currentStatusKey = key;
