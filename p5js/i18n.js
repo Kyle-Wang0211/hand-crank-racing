@@ -34,6 +34,27 @@ const TRANSLATIONS = {
     'rank.byDistance':       '📏 距离 / 进度',
     'rank.tied':             '并列',
     'rank.dnf':              '未完成',
+    // Monitor 监测页
+    'monitor.title':         '电机转动监测',
+    'monitor.subtitle':      '看 ADC 抖动幅度 (peak-to-peak) — 抖动 = 电机在转,死平 = 没转',
+    'monitor.statusInit':    '未连接 — 先关掉游戏标签页,再点这里连接',
+    'monitor.backToGame':    '← 回到游戏',
+    'monitor.thresholdLabel':'启动门槛 PP =',
+    'monitor.sliderHint':    '调小 = 更灵敏 / 调大 = 更难触发',
+    'monitor.sliderNote':    '(只影响监测页显示,不影响游戏)',
+    'monitor.player1':       '玩家1 / 红色',
+    'monitor.player2':       '玩家2 / 蓝色',
+    'monitor.notSpinning':   '⏸ 没转',
+    'monitor.spinning':      '✅ 在转',
+    'monitor.amplitudeLabel':'抖动幅度 (peak-to-peak)',
+    'monitor.howToHead':     '怎么看:',
+    'monitor.howToBody':     '白色竖线是<strong>启动门槛</strong>。彩色条超过白线 → 上面变成 "✅ 在转"。没超过 → "⏸ 没转",哪怕电压还是 25V 也不动。',
+    'monitor.tipHead':       '提示:',
+    'monitor.tipBody':       '如果你拼命摇但 PP 数字一直 &lt; 门槛,说明你的<strong>电容把信号削得太死</strong>,软件检测不到 ripple。可以拆掉那个大电容,或者并一个小电阻让它快速放电。',
+    'monitor.connected':     '已连接 — 摇电机看效果',
+    'monitor.connectFail':   '连接失败 (端口可能被游戏占用?关掉游戏标签再试)',
+    'monitor.disconnect':    '⚠ 短暂断开,自动重连中...',
+    'monitor.reconnect':     '✓ 已重新连接 — 继续摇',
     'game.racing':           '比赛中...',
     'game.finished':         '比赛结束',
     'game.winnerSuffix':     '获胜!',
@@ -80,6 +101,27 @@ const TRANSLATIONS = {
     'rank.byDistance':       '📏 Distance / progress',
     'rank.tied':             'Tied',
     'rank.dnf':              'DNF',
+    // Monitor
+    'monitor.title':         'Rotation Monitor',
+    'monitor.subtitle':      'Watch ADC peak-to-peak — fluctuating = motor spinning, flat = stopped',
+    'monitor.statusInit':    'Not connected — close the game tab first, then click here',
+    'monitor.backToGame':    '← Back to game',
+    'monitor.thresholdLabel':'Trigger PP =',
+    'monitor.sliderHint':    'Smaller = more sensitive / Larger = harder to trigger',
+    'monitor.sliderNote':    '(monitor display only — does not affect the game)',
+    'monitor.player1':       'Player 1 / Red',
+    'monitor.player2':       'Player 2 / Blue',
+    'monitor.notSpinning':   '⏸ Not spinning',
+    'monitor.spinning':      '✅ Spinning',
+    'monitor.amplitudeLabel':'Amplitude (peak-to-peak)',
+    'monitor.howToHead':     'How to read:',
+    'monitor.howToBody':     'The white vertical line is the <strong>trigger threshold</strong>. When the colored bar passes the white line → it shows "✅ Spinning". Otherwise → "⏸ Not spinning", even if voltage stays high.',
+    'monitor.tipHead':       'Tip:',
+    'monitor.tipBody':       'If you crank hard but PP stays &lt; threshold, your <strong>capacitor is smoothing the signal too much</strong> — software cannot detect the ripple. Remove the large cap, or add a small bleed resistor in parallel.',
+    'monitor.connected':     'Connected — crank to see the effect',
+    'monitor.connectFail':   'Connection failed (port may be busy with game tab — close it and retry)',
+    'monitor.disconnect':    '⚠ Brief disconnect — auto-reconnecting...',
+    'monitor.reconnect':     '✓ Reconnected — keep cranking',
     'game.racing':           'Racing...',
     'game.finished':         'Finished',
     'game.winnerSuffix':     'wins!',
@@ -114,12 +156,18 @@ function setLang(lang) {
 }
 
 function applyLangToDOM() {
+  // 通用: 任何带 data-i18n 的元素自动翻译
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.innerHTML = t(el.dataset.i18n);
+  });
+  // 连接按钮特殊处理 (有动态状态)
   const connectBtn = document.getElementById('connectBtn');
   if (connectBtn) {
     const isConnected = connectBtn.dataset.connected === '1';
     connectBtn.textContent = isConnected ? t('ui.connected') : t('ui.connectArduino');
   }
   if (typeof renderStatus === 'function') renderStatus();
+  if (typeof renderMonitorI18n === 'function') renderMonitorI18n();
 }
 
 function updateLangButtons() {

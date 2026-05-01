@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<title>电机转动监测 / Rotation Monitor</title>
+<title>Rotation Monitor / 电机转动监测</title>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -14,8 +14,21 @@
     line-height: 1.5;
   }
   .container { max-width: 1280px; margin: 0 auto; }
+  .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+  .titles { flex: 1; }
   h1 { margin: 0 0 6px; font-size: 22px; }
-  .sub { color: #9aa0a6; margin-bottom: 16px; font-size: 13px; }
+  .sub { color: #9aa0a6; font-size: 13px; }
+  .lang-toggle {
+    display: flex; border-radius: 6px; overflow: hidden;
+    border: 1px solid #444; flex-shrink: 0;
+  }
+  .lang-btn {
+    padding: 6px 14px; font-size: 13px; background: #2a2a2a; color: #aaa;
+    border: none; cursor: pointer; min-width: 42px; border-radius: 0;
+  }
+  .lang-btn:hover { background: #3a3a3a; color: white; }
+  .lang-btn.active { background: #2563eb; color: white; }
+
   .controls {
     display: flex; align-items: center; gap: 14px;
     background: #1a2230; padding: 14px 18px; border-radius: 10px;
@@ -26,6 +39,7 @@
     background: #2563eb; color: white; border: none; border-radius: 6px;
   }
   button:hover { background: #1d4ed8; }
+  button:disabled { background: #444; cursor: default; }
   #status { color: #aaa; font-size: 13px; }
   .channels { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .channel {
@@ -35,8 +49,7 @@
   }
   .channel.p1 { border-color: #5a2828; }
   .channel.p2 { border-color: #28395a; }
-  .channel.spinning.p1 { border-color: #4ade80; background: #1a2a1a; }
-  .channel.spinning.p2 { border-color: #4ade80; background: #1a2a1a; }
+  .channel.spinning { border-color: #4ade80; background: #1a2a1a; }
   .ch-title {
     font-size: 18px; font-weight: 600; margin-bottom: 16px;
     display: flex; justify-content: space-between; align-items: center;
@@ -46,7 +59,7 @@
   .channel.p2 .ch-title { color: #3498db; }
   .verdict {
     text-align: center;
-    font-size: 72px;
+    font-size: 60px;
     font-weight: 700;
     margin: 20px 0;
     transition: color 0.15s, transform 0.15s;
@@ -82,42 +95,48 @@
     line-height: 1.7;
   }
   .info strong { color: #facc15; }
-  .info code { background: #0e141c; padding: 1px 6px; border-radius: 3px; color: #5fc9ff; font-size: 12px; }
-
   a { color: #5fc9ff; }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>电机转动监测</h1>
-  <div class="sub">看 ADC 抖动幅度 (peak-to-peak) — 抖动 = 电机在转,死平 = 没转</div>
-
-  <div class="controls">
-    <button id="connectBtn">连接 Arduino</button>
-    <span id="status">未连接 — 先关掉游戏标签页,再点这里连接</span>
-    <div style="flex: 1"></div>
-    <a href="index.html">← 回到游戏</a>
+  <div class="topbar">
+    <div class="titles">
+      <h1 data-i18n="monitor.title">电机转动监测</h1>
+      <div class="sub" data-i18n="monitor.subtitle">看 ADC 抖动幅度 (peak-to-peak) — 抖动 = 电机在转,死平 = 没转</div>
+    </div>
+    <div class="lang-toggle">
+      <button class="lang-btn" data-lang="zh">中</button>
+      <button class="lang-btn" data-lang="en">EN</button>
+    </div>
   </div>
 
   <div class="controls">
-    <label style="font-size: 14px;">启动门槛 PP =
+    <button id="connectBtn" data-i18n="ui.connectArduino">连接 Arduino</button>
+    <span id="status" data-i18n="monitor.statusInit">未连接 — 先关掉游戏标签页,再点这里连接</span>
+    <div style="flex: 1"></div>
+    <a href="index.html" data-i18n="monitor.backToGame">← 回到游戏</a>
+  </div>
+
+  <div class="controls">
+    <label style="font-size: 14px;">
+      <span data-i18n="monitor.thresholdLabel">启动门槛 PP =</span>
       <strong id="thrVal" style="color: #facc15; font-family: monospace;">10</strong>
     </label>
     <input type="range" id="thrSlider" min="1" max="2000" step="1" value="10"
            style="flex: 1; max-width: 400px;">
-    <span style="color: #888; font-size: 12px;">
-      调小 = 更灵敏 / 调大 = 更难触发
-    </span>
-    <span style="color: #5fc9ff; font-size: 12px;">
-      (会自动同步到游戏)
-    </span>
+    <span style="color: #888; font-size: 12px;" data-i18n="monitor.sliderHint">调小 = 更灵敏 / 调大 = 更难触发</span>
+    <span style="color: #5fc9ff; font-size: 12px;" data-i18n="monitor.sliderNote">(只影响监测页显示)</span>
   </div>
 
   <div class="channels">
     <div class="channel p1" id="ch0">
-      <div class="ch-title">玩家1 / 红色 <span class="pin">A2</span></div>
-      <div class="verdict no" id="verdict-0">⏸ 没转</div>
-      <div class="pp-label">抖动幅度 (peak-to-peak)</div>
+      <div class="ch-title">
+        <span data-i18n="monitor.player1">玩家1 / 红色</span>
+        <span class="pin">A2</span>
+      </div>
+      <div class="verdict no" id="verdict-0" data-i18n="monitor.notSpinning">⏸ 没转</div>
+      <div class="pp-label" data-i18n="monitor.amplitudeLabel">抖动幅度 (peak-to-peak)</div>
       <div class="pp-bar-wrap">
         <div class="pp-bar" id="ppbar-0" style="width: 0%"></div>
         <div class="pp-threshold" id="ppth-0" style="left: 10%"></div>
@@ -127,9 +146,12 @@
     </div>
 
     <div class="channel p2" id="ch1">
-      <div class="ch-title">玩家2 / 蓝色 <span class="pin">A7</span></div>
-      <div class="verdict no" id="verdict-1">⏸ 没转</div>
-      <div class="pp-label">抖动幅度 (peak-to-peak)</div>
+      <div class="ch-title">
+        <span data-i18n="monitor.player2">玩家2 / 蓝色</span>
+        <span class="pin">A7</span>
+      </div>
+      <div class="verdict no" id="verdict-1" data-i18n="monitor.notSpinning">⏸ 没转</div>
+      <div class="pp-label" data-i18n="monitor.amplitudeLabel">抖动幅度 (peak-to-peak)</div>
       <div class="pp-bar-wrap">
         <div class="pp-bar" id="ppbar-1" style="width: 0%"></div>
         <div class="pp-threshold" id="ppth-1" style="left: 10%"></div>
@@ -140,25 +162,25 @@
   </div>
 
   <div class="info">
-    <strong>怎么看:</strong>
-    白色竖线是<strong>启动门槛</strong> (PP=25)。彩色条超过白线 → 上面变成 "✅ 在转",游戏里小人会动。
-    没超过 → "⏸ 没转",哪怕电压还是 25V 也不动。
+    <strong data-i18n="monitor.howToHead">怎么看:</strong>
+    <span data-i18n="monitor.howToBody">白色竖线是<strong>启动门槛</strong>。彩色条超过白线 → 上面变成 "✅ 在转"。没超过 → "⏸ 没转",哪怕电压还是 25V 也不动。</span>
     <br><br>
-    <strong>提示:</strong>
-    如果你拼命摇但 PP 数字一直 &lt; 25,说明你的<strong>电容把信号削得太死</strong>,软件检测不到 ripple。这时只能改硬件 — 拆掉那个大电容,或者并一个小电阻让它快速放电。
+    <strong data-i18n="monitor.tipHead">提示:</strong>
+    <span data-i18n="monitor.tipBody">如果你拼命摇但 PP 数字一直 &lt; 门槛,说明你的<strong>电容把信号削得太死</strong>,软件检测不到 ripple。可以拆掉那个大电容,或者并一个小电阻让它快速放电。</span>
   </div>
 </div>
 
-<script src="serial.js?v=mon2"></script>
+<script src="i18n.js?v=mon3"></script>
+<script src="serial.js?v=mon3"></script>
 <script>
 'use strict';
 
-const RAW_HISTORY = 12;       // 滑动窗口大小
+const RAW_HISTORY = 12;
 let PP_THRESHOLD = parseInt(localStorage.getItem('ppThreshold') || '10', 10);
-// 进度条 100% 对应的 PP 值,跟着门槛走 (门槛大,显示范围也要大)
-function ppDisplayMax() { return Math.max(PP_THRESHOLD * 3, 300); }
 const ADC_MAX = 4095;
-const HISTORY_LEN = 200;      // 图上保留多少个采样点 (~10秒)
+const HISTORY_LEN = 200;
+
+function ppDisplayMax() { return Math.max(PP_THRESHOLD * 3, 300); }
 
 const channels = [
   { idx: 0, raw: 0, history: [], graphHistory: [] },
@@ -167,8 +189,24 @@ const channels = [
 
 const arduino = new ArduinoSerial();
 
+// 当前状态键 — 语言切换时重新渲染
+let currentMonStatus = 'monitor.statusInit';
+function setMonStatus(key) {
+  currentMonStatus = key;
+  document.getElementById('status').textContent = t(key);
+}
+// 暴露给 i18n.js 的 applyLangToDOM 调用,语言切换时重新写状态
+function renderMonitorI18n() {
+  document.getElementById('status').textContent = t(currentMonStatus);
+  // 大字 (verdict) 也要根据 language 切换
+  for (const ch of channels) {
+    const el = document.getElementById(`verdict-${ch.idx}`);
+    const isSpin = el.classList.contains('yes');
+    el.textContent = t(isSpin ? 'monitor.spinning' : 'monitor.notSpinning');
+  }
+}
+
 arduino.onValues = (vals) => {
-  // 协议: [out1, out2, raw1, raw2]
   if (vals.length < 4) return;
   for (let i = 0; i < 2; i++) {
     const ch = channels[i];
@@ -180,15 +218,23 @@ arduino.onValues = (vals) => {
   }
 };
 
-arduino.onDisconnect = () => {
-  document.getElementById('status').textContent = '⚠ 短暂断开,自动重连中...';
-  // 不重置按钮 — 我们正在自动重连
-};
-arduino.onReconnect = () => {
-  document.getElementById('status').textContent = '✓ 已重新连接 — 继续摇';
-};
+arduino.onDisconnect = () => setMonStatus('monitor.disconnect');
+arduino.onReconnect = () => setMonStatus('monitor.reconnect');
 
-// 滑块: 调整门槛并同步到 localStorage (游戏端读)
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  const ok = await arduino.connect();
+  if (ok) {
+    const btn = document.getElementById('connectBtn');
+    btn.dataset.connected = '1';
+    btn.disabled = true;
+    btn.textContent = t('ui.connected');
+    setMonStatus('monitor.connected');
+  } else {
+    setMonStatus('monitor.connectFail');
+  }
+});
+
+// 滑块
 const thrSlider = document.getElementById('thrSlider');
 const thrVal = document.getElementById('thrVal');
 thrSlider.value = PP_THRESHOLD;
@@ -198,24 +244,6 @@ thrSlider.addEventListener('input', () => {
   thrVal.textContent = PP_THRESHOLD;
   localStorage.setItem('ppThreshold', String(PP_THRESHOLD));
 });
-
-document.getElementById('connectBtn').addEventListener('click', async () => {
-  const ok = await arduino.connect();
-  if (ok) {
-    const btn = document.getElementById('connectBtn');
-    btn.textContent = '已连接';
-    btn.disabled = true;
-    document.getElementById('status').textContent = '已连接 — 摇电机看效果';
-  } else {
-    document.getElementById('status').textContent = '连接失败 (端口可能被游戏占用?关掉游戏标签再试)';
-  }
-});
-
-function resetConnectButton() {
-  const btn = document.getElementById('connectBtn');
-  btn.textContent = '连接 Arduino';
-  btn.disabled = false;
-}
 
 function render() {
   for (const ch of channels) {
@@ -232,20 +260,18 @@ function render() {
 
     const rotating = pp >= PP_THRESHOLD;
 
-    // 卡片底色 / 大字
     const card = document.getElementById(`ch${i}`);
     card.classList.toggle('spinning', rotating);
 
     const verdict = document.getElementById(`verdict-${i}`);
     if (rotating) {
-      verdict.textContent = '✅ 在转';
+      verdict.textContent = t('monitor.spinning');
       verdict.classList.add('yes'); verdict.classList.remove('no');
     } else {
-      verdict.textContent = '⏸ 没转';
+      verdict.textContent = t('monitor.notSpinning');
       verdict.classList.remove('yes'); verdict.classList.add('no');
     }
 
-    // 抖动条
     const pct = Math.min(100, pp / ppDisplayMax() * 100);
     document.getElementById(`ppbar-${i}`).style.width = pct + '%';
     document.getElementById(`ppth-${i}`).style.left = (PP_THRESHOLD / ppDisplayMax() * 100) + '%';
