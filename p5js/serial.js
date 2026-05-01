@@ -1,4 +1,6 @@
 // Web Serial API 封装 (支持单值或多值,用逗号分隔)
+// 关键特性: USB 因 EMI/抖动断开后,自动重连同一个端口,不弹窗
+//
 // Arduino 端协议:
 //   单值游戏: Serial.println(v1);        -> onValues([v1])
 //   双值游戏: Serial.print(v1);
@@ -12,10 +14,13 @@ class ArduinoSerial {
     this.port = null;
     this.reader = null;
     this.connected = false;
+    this.userClosed = false;     // true 时不再尝试重连
     this.latestValues = [];
-    this.onValues = null;         // (numberArray) => void
-    this.onDisconnect = null;     // () => void
+    this.onValues = null;        // (numberArray) => void
+    this.onDisconnect = null;    // 短暂断开 (会自动重连)
+    this.onReconnect = null;     // 重连成功
     this._buffer = '';
+    this._reconnectTimer = null;
   }
 
   async connect() {
@@ -27,6 +32,7 @@ class ArduinoSerial {
       this.port = await navigator.serial.requestPort();
       await this.port.open({ baudRate: this.baudRate });
       this.connected = true;
+      this.userClosed = false;
       this._readLoop();
       return true;
     } catch (e) {
@@ -52,10 +58,52 @@ class ArduinoSerial {
         }
       }
     } catch (e) {
-      console.error('串口读取出错:', e);
+      // EMI 引起的断开会走到这里
+      console.warn('串口读取中断:', e && e.message);
     } finally {
       this.connected = false;
+      this.reader = null;
+      this._buffer = '';
       if (this.onDisconnect) this.onDisconnect();
+      // 不是用户主动断开 → 自动重连
+      if (!this.userClosed) {
+        this._scheduleReconnect(150);
+      }
+    }
+  }
+
+  _scheduleReconnect(delayMs) {
+    if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+    this._reconnectTimer = setTimeout(() => this._tryReconnect(), delayMs);
+  }
+
+  async _tryReconnect() {
+    if (this.userClosed || this.connected) return;
+    try {
+      // 把可能半关的端口先彻底关掉,避免下一步报 InvalidStateError
+      try { await this.port.close(); } catch (_) {}
+      // 给操作系统喘口气重新认设备
+      await new Promise(r => setTimeout(r, 100));
+      await this.port.open({ baudRate: this.baudRate });
+      this.connected = true;
+      this._readLoop();
+      if (this.onReconnect) this.onReconnect();
+      return;
+    } catch (e) {
+      // 原端口对象失效了 → 用 getPorts() 找一个之前授权过的端口
+      try {
+        const ports = await navigator.serial.getPorts();
+        if (ports.length > 0) {
+          this.port = ports[0];
+          await this.port.open({ baudRate: this.baudRate });
+          this.connected = true;
+          this._readLoop();
+          if (this.onReconnect) this.onReconnect();
+          return;
+        }
+      } catch (_) {}
+      // 还失败 → 500ms 后再来一次
+      this._scheduleReconnect(500);
     }
   }
 
@@ -73,7 +121,9 @@ class ArduinoSerial {
   }
 
   async disconnect() {
+    this.userClosed = true;
     this.connected = false;
+    if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
     try {
       if (this.reader) await this.reader.cancel();
       if (this.port) await this.port.close();
