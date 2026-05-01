@@ -21,8 +21,8 @@ const SERIAL_STALE_MS = 600;
 // 电机静止 → ADC 死平 (无论电容存了多少电)
 const RAW_HISTORY_SIZE = 12;     // 滑动窗口: ~0.6s @ 20Hz
 // 游戏自己的阈值,跟监测页解耦,不读 localStorage
-const RAW_PP_MIN = 1000;         // PP < 1000 = 小人不动
-const RAW_PP_MAX = 1500;         // PP ≥ 1500 = 满速
+const RAW_PP_MIN = 20;           // PP < 20 = 小人不动
+const RAW_PP_MAX = 200;          // PP ≥ 200 = 满速
 
 const READY_CRANK_THRESHOLD = 500;   // 串口模式下,摇得超过此值即视为"准备好"
 const COUNTDOWN_MS = 3000;            // 3 秒倒数
