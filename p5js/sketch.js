@@ -114,9 +114,28 @@ function resetGame() {
   countdownStartTime = 0;
 }
 
+// 测试模式: URL 加 ?test=1 自动注入抖动数据,不需要 Arduino
+const TEST_MODE = new URLSearchParams(location.search).get('test') === '1';
+
+function injectTestData() {
+  const t = millis() / 1000;
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    // 模拟波动 ADC: 中心 2000,幅度 50,PP 大概 80-100
+    const fakeRaw = 2000 + Math.sin(t * 8 + i * 1.3) * 50 + (Math.random() - 0.5) * 30;
+    p.rawValue = fakeRaw;
+    p.serialValue = 700;
+    p.rawHistory.push(fakeRaw);
+    if (p.rawHistory.length > RAW_HISTORY_SIZE) p.rawHistory.shift();
+  }
+  useSerial = true;
+  lastSerialUpdate = millis();
+}
+
 function draw() {
   background(12, 15, 25);
 
+  if (TEST_MODE) injectTestData();
   updateInputs();
 
   if (state === 'lobby') {
