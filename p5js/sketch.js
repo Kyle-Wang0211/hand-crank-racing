@@ -116,6 +116,8 @@ function resetGame() {
 
 // 测试模式: URL 加 ?test=1 自动注入抖动数据,不需要 Arduino
 const TEST_MODE = new URLSearchParams(location.search).get('test') === '1';
+// 调试模式: URL 加 ?debug=1 在右下角显示每个玩家的实时数值
+const DEBUG_MODE = new URLSearchParams(location.search).get('debug') === '1' || TEST_MODE;
 
 function injectTestData() {
   const t = millis() / 1000;
@@ -149,7 +151,35 @@ function draw() {
   drawTracks();
   drawHUD();
   drawOverlay();
+  if (DEBUG_MODE) drawDebug();
   checkFinish();
+}
+
+// 调试面板: 显示 state + 每个玩家的关键数值
+function drawDebug() {
+  push();
+  fill(0, 200);
+  rect(0, CANVAS_H - 80, 360, 80);
+  fill(255, 230, 0);
+  textSize(11);
+  textAlign(LEFT, TOP);
+  textStyle(BOLD);
+  text(`[STATE] ${state}`, 8, CANVAS_H - 76);
+  textStyle(NORMAL);
+  let y = CANVAS_H - 60;
+  fill(255);
+  for (const p of players) {
+    const target = p.rawPP < RAW_PP_MIN
+      ? 0
+      : map(p.rawPP, RAW_PP_MIN, RAW_PP_MAX, 5, 10, true);
+    fill(p.color);
+    text(
+      `P${p.id+1}: PP=${(p.rawPP||0).toFixed(0).padStart(4)}  tgt=${target.toFixed(2)}  spd=${p.speed.toFixed(2)}  dist=${p.distance.toFixed(0)}`,
+      8, y
+    );
+    y += 16;
+  }
+  pop();
 }
 
 // --- input & physics ---------------------------------------------
