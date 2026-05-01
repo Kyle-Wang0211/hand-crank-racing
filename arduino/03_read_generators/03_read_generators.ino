@@ -70,9 +70,16 @@ void loop() {
   }
 
   // ---- 正式输出: p5.js 接收 ----
+  // 协议: out1,out2,raw1,raw2
+  // 游戏只用前两个 (归一化 0-1000)
+  // monitor.html 用全部 4 个 (后两个是原始 ADC 0-4095)
   Serial.print(out1);
   Serial.print(",");
-  Serial.println(out2);
+  Serial.print(out2);
+  Serial.print(",");
+  Serial.print(raw1);
+  Serial.print(",");
+  Serial.println(raw2);
 
   // ---- LED 指示: 只要有一路在摇就亮 ----
   digitalWrite(LED_BUILTIN, (out1 + out2) > 100 ? HIGH : LOW);

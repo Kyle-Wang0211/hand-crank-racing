@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>实时电压监测 / Voltage Monitor</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, 'PingFang SC', 'Helvetica Neue', sans-serif;
+    background: #0e141c;
+    color: #e8e8e8;
+    padding: 24px;
+    line-height: 1.5;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+  h1 { margin: 0 0 6px; font-size: 22px; }
+  .sub { color: #9aa0a6; margin-bottom: 16px; font-size: 13px; }
+  .controls {
+    display: flex; align-items: center; gap: 14px;
+    background: #1a2230; padding: 14px 18px; border-radius: 10px;
+    margin-bottom: 18px; flex-wrap: wrap;
+  }
+  button {
+    padding: 9px 18px; font-size: 14px; cursor: pointer;
+    background: #2563eb; color: white; border: none; border-radius: 6px;
+  }
+  button:hover { background: #1d4ed8; }
+  button.warn { background: #444; }
+  button.warn:hover { background: #555; }
+  #status { color: #aaa; font-size: 13px; }
+  .channels { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .channel {
+    background: #1a2230; padding: 20px; border-radius: 12px;
+    border: 1px solid #2a3444;
+  }
+  .channel.p1 { border-color: #e74c3c; }
+  .channel.p2 { border-color: #3498db; }
+  .ch-title {
+    font-size: 16px; font-weight: 600; margin-bottom: 12px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .ch-title .pin { font-family: monospace; color: #888; font-size: 13px; }
+  .channel.p1 .ch-title { color: #e74c3c; }
+  .channel.p2 .ch-title { color: #3498db; }
+  .row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 5px 0; border-bottom: 1px dashed #2a3444; font-size: 14px;
+  }
+  .row:last-child { border-bottom: none; }
+  .row .label { color: #9aa0a6; }
+  .row .val {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-weight: 600;
+  }
+  .big {
+    font-size: 28px; color: #5fc9ff;
+    text-align: center; margin: 14px 0;
+    font-family: 'SF Mono', Menlo, monospace;
+  }
+  .bar-wrap {
+    height: 16px; background: #0e141c; border-radius: 8px; overflow: hidden;
+    margin: 8px 0; position: relative;
+  }
+  .bar {
+    height: 100%; transition: width 0.05s ease-out;
+    background: linear-gradient(to right, #4ade80 0%, #facc15 60%, #f87171 90%);
+  }
+  .bar-marker {
+    position: absolute; top: -2px; bottom: -2px; width: 2px;
+    background: #fff; opacity: 0.7;
+  }
+  .stats { display: flex; gap: 14px; margin-top: 8px; font-size: 12px; color: #9aa0a6; }
+  .stat strong { color: #e8e8e8; font-family: monospace; }
+  canvas { width: 100%; height: 90px; background: #0e141c; border-radius: 6px; margin-top: 10px; }
+
+  .recommend {
+    margin-top: 22px; background: #1a2a14;
+    border: 2px solid #4ade80; padding: 18px; border-radius: 12px;
+  }
+  .recommend h2 { margin: 0 0 12px; color: #4ade80; font-size: 16px; }
+  .rec-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    font-family: 'SF Mono', Menlo, monospace; font-size: 14px;
+  }
+  .rec-line strong { color: #facc15; font-size: 18px; }
+  .rec-note { color: #9aa0a6; font-size: 12px; margin-top: 10px; }
+
+  .legend {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    font-size: 12px; color: #888; margin-top: 10px;
+  }
+  .legend code {
+    background: #0e141c; padding: 1px 6px; border-radius: 3px;
+    color: #5fc9ff; font-size: 11px;
+  }
+  a { color: #5fc9ff; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>实时电压监测</h1>
+  <div class="sub">摇电机看实时数据,根据 Min/Max 决定 Arduino 的 DEADZONE 和 MAX_ADC</div>
+
+  <div class="controls">
+    <button id="connectBtn">连接 Arduino</button>
+    <span id="status">未连接 — 点上面的按钮开始</span>
+    <div style="flex: 1"></div>
+    <button class="warn" id="resetStats">↻ 重置 Min/Max</button>
+    <a href="index.html">← 回到游戏</a>
+  </div>
+
+  <div class="channels">
+    <div class="channel p1" id="ch0">
+      <div class="ch-title">玩家1 / 红色 <span class="pin">A2</span></div>
+
+      <div class="big" id="big-0">— V</div>
+
+      <div class="bar-wrap">
+        <div class="bar" id="bar-0" style="width: 0%"></div>
+      </div>
+
+      <div class="row"><span class="label">原始 ADC</span><span class="val" id="raw-0">—</span></div>
+      <div class="row"><span class="label">A2 电压</span><span class="val" id="vpin-0">— V</span></div>
+      <div class="row"><span class="label">电机电压 (估算)</span><span class="val" id="vgen-0">— V</span></div>
+      <div class="row"><span class="label">归一化输出 (送游戏)</span><span class="val" id="out-0">—</span></div>
+      <div class="row"><span class="label">游戏速度 (0-10)</span><span class="val" id="spd-0">—</span></div>
+
+      <div class="stats">
+        <span class="stat">Min ADC: <strong id="min-0">—</strong></span>
+        <span class="stat">Max ADC: <strong id="max-0">—</strong></span>
+        <span class="stat">Max V: <strong id="maxv-0">—</strong></span>
+      </div>
+
+      <canvas id="graph-0" width="500" height="90"></canvas>
+    </div>
+
+    <div class="channel p2" id="ch1">
+      <div class="ch-title">玩家2 / 蓝色 <span class="pin">A7</span></div>
+
+      <div class="big" id="big-1">— V</div>
+
+      <div class="bar-wrap">
+        <div class="bar" id="bar-1" style="width: 0%"></div>
+      </div>
+
+      <div class="row"><span class="label">原始 ADC</span><span class="val" id="raw-1">—</span></div>
+      <div class="row"><span class="label">A7 电压</span><span class="val" id="vpin-1">— V</span></div>
+      <div class="row"><span class="label">电机电压 (估算)</span><span class="val" id="vgen-1">— V</span></div>
+      <div class="row"><span class="label">归一化输出 (送游戏)</span><span class="val" id="out-1">—</span></div>
+      <div class="row"><span class="label">游戏速度 (0-10)</span><span class="val" id="spd-1">—</span></div>
+
+      <div class="stats">
+        <span class="stat">Min ADC: <strong id="min-1">—</strong></span>
+        <span class="stat">Max ADC: <strong id="max-1">—</strong></span>
+        <span class="stat">Max V: <strong id="maxv-1">—</strong></span>
+      </div>
+
+      <canvas id="graph-1" width="500" height="90"></canvas>
+    </div>
+  </div>
+
+  <div class="recommend">
+    <h2>💡 推荐 Arduino 参数 (根据你刚才摇的范围算的)</h2>
+    <div class="rec-grid">
+      <div class="rec-line">DEADZONE = <strong id="rec-dead">—</strong></div>
+      <div class="rec-line">MAX_ADC = <strong id="rec-max">—</strong></div>
+    </div>
+    <div class="rec-note">
+      <strong>使用方法</strong>: 1) 让两个电机彻底不动,等 5 秒 (取 Min) ↦ DEADZONE 用 Min + 50。
+      2) 拼命摇 5 秒 (取 Max) ↦ MAX_ADC 用 Max - 200(留点冗余)。
+      3) 改 <code>03_read_generators.ino</code> 顶部那两个常数,重新上传。
+    </div>
+  </div>
+
+  <div class="legend">
+    <span>📐 分压比 ≈ 0.1304 → 电机电压 = A 引脚电压 ÷ 0.1304</span>
+    <span>📡 协议: <code>out1,out2,raw1,raw2</code></span>
+    <span>🌐 必须 Chrome / Edge</span>
+  </div>
+</div>
+
+<script src="serial.js?v=monitor1"></script>
+<script>
+'use strict';
+
+const PIN_REF_V = 3.3;      // ESP32 ADC 满量程
+const ADC_MAX = 4095;       // 12-bit
+const DIV_RATIO = 0.1304;   // 分压系数 3.3k/(22k+3.3k)
+const ARDUINO_DEADZONE = 500;  // 当前 Arduino 用的值
+const ARDUINO_MAX_ADC = 3500;  // 当前 Arduino 用的值
+const HISTORY_LEN = 200;    // 图上保留多少个采样点 (200 * 50ms = 10秒)
+
+// 每路通道的状态
+const channels = [
+  { idx: 0, raw: 0, out: 0, min: Infinity, max: 0, history: [] },
+  { idx: 1, raw: 0, out: 0, min: Infinity, max: 0, history: [] },
+];
+
+const arduino = new ArduinoSerial();
+
+arduino.onValues = (vals) => {
+  // 协议: [out1, out2, raw1, raw2]
+  if (vals.length < 4) return;  // 旧固件兼容性: 不够就跳过
+  for (let i = 0; i < 2; i++) {
+    const ch = channels[i];
+    ch.out = vals[i];
+    ch.raw = vals[2 + i];
+    ch.min = Math.min(ch.min, ch.raw);
+    ch.max = Math.max(ch.max, ch.raw);
+    ch.history.push(ch.raw);
+    if (ch.history.length > HISTORY_LEN) ch.history.shift();
+  }
+};
+
+arduino.onDisconnect = () => {
+  document.getElementById('status').textContent = '已断开 — 重新连接';
+  resetConnectButton();
+};
+
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  const ok = await arduino.connect();
+  if (ok) {
+    const btn = document.getElementById('connectBtn');
+    btn.textContent = '已连接';
+    btn.disabled = true;
+    document.getElementById('status').textContent = '已连接 — 摇电机看实时数据';
+  }
+});
+
+document.getElementById('resetStats').addEventListener('click', () => {
+  channels.forEach(c => { c.min = Infinity; c.max = 0; c.history = []; });
+});
+
+function resetConnectButton() {
+  const btn = document.getElementById('connectBtn');
+  btn.textContent = '连接 Arduino';
+  btn.disabled = false;
+}
+
+// --- 实时显示 ---
+function render() {
+  for (const ch of channels) {
+    const i = ch.idx;
+    const vPin = ch.raw / ADC_MAX * PIN_REF_V;
+    const vGen = vPin / DIV_RATIO;
+    // 跟 Arduino 端 normalize() 保持一致的速度估算 (本页只展示)
+    const span = ARDUINO_MAX_ADC - ARDUINO_DEADZONE;
+    const speed = ch.out < 300 ? 0 : (ch.out >= 1000 ? 10 : (5 + (ch.out - 300) / 700 * 5));
+
+    setText(`big-${i}`, `${vGen.toFixed(2)} V`);
+    setText(`raw-${i}`, ch.raw);
+    setText(`vpin-${i}`, `${vPin.toFixed(3)} V`);
+    setText(`vgen-${i}`, `${vGen.toFixed(2)} V`);
+    setText(`out-${i}`, `${ch.out} / 1000`);
+    setText(`spd-${i}`, speed.toFixed(1));
+    setText(`min-${i}`, ch.min === Infinity ? '—' : ch.min);
+    setText(`max-${i}`, ch.max);
+    setText(`maxv-${i}`, ch.max === 0 ? '—' : `${(ch.max / ADC_MAX * PIN_REF_V / DIV_RATIO).toFixed(2)} V`);
+
+    // 进度条 (按当前 ADC 在 0-4095 范围的占比)
+    const pct = constrainP(ch.raw / ADC_MAX * 100, 0, 100);
+    document.getElementById(`bar-${i}`).style.width = pct + '%';
+
+    drawGraph(i, ch.history);
+  }
+  updateRecommendations();
+  requestAnimationFrame(render);
+}
+
+function setText(id, txt) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = txt;
+}
+
+function constrainP(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+function drawGraph(i, history) {
+  const canvas = document.getElementById(`graph-${i}`);
+  const ctx = canvas.getContext('2d');
+  // 因为 CSS width 100%,真实尺寸用 clientWidth
+  const w = canvas.clientWidth;
+  const h = canvas.height;
+  if (canvas.width !== w) canvas.width = w;
+  ctx.clearRect(0, 0, w, h);
+
+  // Y 轴标线: ADC 0, 1000, 2000, 3000, 4095
+  ctx.strokeStyle = '#2a3444';
+  ctx.lineWidth = 1;
+  for (let v = 1000; v <= 4095; v += 1000) {
+    const y = h - (v / ADC_MAX) * h;
+    ctx.beginPath();
+    ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+
+  // 当前 Arduino 的 DEADZONE 和 MAX_ADC 标线
+  ctx.strokeStyle = '#facc15';
+  ctx.setLineDash([4, 4]);
+  const yDead = h - (ARDUINO_DEADZONE / ADC_MAX) * h;
+  ctx.beginPath(); ctx.moveTo(0, yDead); ctx.lineTo(w, yDead); ctx.stroke();
+  ctx.strokeStyle = '#f87171';
+  const yMax = h - (ARDUINO_MAX_ADC / ADC_MAX) * h;
+  ctx.beginPath(); ctx.moveTo(0, yMax); ctx.lineTo(w, yMax); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 数据曲线
+  if (history.length < 2) return;
+  ctx.strokeStyle = i === 0 ? '#e74c3c' : '#3498db';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let k = 0; k < history.length; k++) {
+    const x = (k / (HISTORY_LEN - 1)) * w;
+    const y = h - (history[k] / ADC_MAX) * h;
+    if (k === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+
+function updateRecommendations() {
+  // 推荐: DEADZONE = 两路 Min + 50 (取较大值,保险)
+  // MAX_ADC = 两路 Max - 200 (保留冗余,避免 saturate)
+  const minOK = channels.every(c => c.min !== Infinity);
+  if (!minOK) {
+    setText('rec-dead', '— (先静止 5 秒)');
+    setText('rec-max', '— (先狂摇 5 秒)');
+    return;
+  }
+  const maxMin = Math.max(channels[0].min, channels[1].min);
+  const minMax = Math.min(channels[0].max, channels[1].max);
+  const recDead = maxMin + 50;
+  const recMax = Math.max(recDead + 500, minMax - 200);
+  setText('rec-dead', recDead);
+  setText('rec-max', recMax);
+}
+
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
