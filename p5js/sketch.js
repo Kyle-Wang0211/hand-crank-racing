@@ -60,6 +60,13 @@ function setup() {
   arduino.onDisconnect = () => {
     useSerial = false;
     setStatus('ui.serialDisconnected');
+    // 重置按钮 — 让用户可以再次点击重新连接
+    const btn = document.getElementById('connectBtn');
+    if (btn) {
+      btn.dataset.connected = '';
+      btn.disabled = false;
+      btn.textContent = t('ui.connectArduino');
+    }
   };
 
   document.getElementById('connectBtn').addEventListener('click', async () => {
