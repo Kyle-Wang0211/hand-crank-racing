@@ -135,7 +135,6 @@
         <span data-i18n="monitor.player1">玩家1 / 红色</span>
         <span class="pin">A2</span>
       </div>
-      <div class="verdict no" id="verdict-0" data-i18n="monitor.notSpinning">⏸ 没转</div>
       <div class="pp-label" data-i18n="monitor.amplitudeLabel">抖动幅度 (peak-to-peak)</div>
       <div class="pp-bar-wrap">
         <div class="pp-bar" id="ppbar-0" style="width: 0%"></div>
@@ -150,7 +149,6 @@
         <span data-i18n="monitor.player2">玩家2 / 蓝色</span>
         <span class="pin">A7</span>
       </div>
-      <div class="verdict no" id="verdict-1" data-i18n="monitor.notSpinning">⏸ 没转</div>
       <div class="pp-label" data-i18n="monitor.amplitudeLabel">抖动幅度 (peak-to-peak)</div>
       <div class="pp-bar-wrap">
         <div class="pp-bar" id="ppbar-1" style="width: 0%"></div>
@@ -198,12 +196,6 @@ function setMonStatus(key) {
 // 暴露给 i18n.js 的 applyLangToDOM 调用,语言切换时重新写状态
 function renderMonitorI18n() {
   document.getElementById('status').textContent = t(currentMonStatus);
-  // 大字 (verdict) 也要根据 language 切换
-  for (const ch of channels) {
-    const el = document.getElementById(`verdict-${ch.idx}`);
-    const isSpin = el.classList.contains('yes');
-    el.textContent = t(isSpin ? 'monitor.spinning' : 'monitor.notSpinning');
-  }
 }
 
 arduino.onValues = (vals) => {
@@ -259,18 +251,8 @@ function render() {
     }
 
     const rotating = pp >= PP_THRESHOLD;
-
     const card = document.getElementById(`ch${i}`);
     card.classList.toggle('spinning', rotating);
-
-    const verdict = document.getElementById(`verdict-${i}`);
-    if (rotating) {
-      verdict.textContent = t('monitor.spinning');
-      verdict.classList.add('yes'); verdict.classList.remove('no');
-    } else {
-      verdict.textContent = t('monitor.notSpinning');
-      verdict.classList.remove('yes'); verdict.classList.add('no');
-    }
 
     const pct = Math.min(100, pp / ppDisplayMax() * 100);
     document.getElementById(`ppbar-${i}`).style.width = pct + '%';
