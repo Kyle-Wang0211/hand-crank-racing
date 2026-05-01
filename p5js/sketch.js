@@ -16,10 +16,12 @@ const MAX_CRANK_RATE = 8;
 const SERIAL_MAX = 1000;
 const SERIAL_MIN_TO_MOVE = 300;
 const SERIAL_STALE_MS = 600;
-// 防"电容存电"的活跃检测:
-// 即使 Arduino 一直发 1000,只要数值不再 fluctuate(电容静止),就当作"没在摇"
-const SIGNIFICANT_CHANGE = 25;       // 串口值跳动 >= 25 算"活跃"
-const ACTIVITY_STALE_MS = 700;       // 超过 0.7 秒没活跃跳动 = 已停摇
+// 防"电容存电"的活跃检测 (放宽版):
+// 任何向上跳动 ≥ 5 都算"还在摇"; 持续 3 秒一动不动才认定停摇
+const SIGNIFICANT_CHANGE = 5;
+const ACTIVITY_STALE_MS = 3000;
+// 兜底: 即使无任何活跃信号,只要数值还高,先按 30% 速度走一会儿,避免完全没反应
+const FALLBACK_SPEED_FACTOR = 0.3;
 
 const READY_CRANK_THRESHOLD = 500;   // 串口模式下,摇得超过此值即视为"准备好"
 const COUNTDOWN_MS = 3000;            // 3 秒倒数
@@ -152,10 +154,15 @@ function updateInputs() {
     if (useSerial) {
       // 活跃检测: 数值卡住不动 = 电容存电而已,不算在摇
       const inactive = (now - p.lastActivityTime) > ACTIVITY_STALE_MS;
-      if (inactive || p.serialValue < SERIAL_MIN_TO_MOVE) {
+      if (p.serialValue < SERIAL_MIN_TO_MOVE) {
         target = 0;
-      } else {
+      } else if (!inactive) {
+        // 正常情况: 有活跃信号 → 按值映射速度
         target = map(p.serialValue, SERIAL_MIN_TO_MOVE, SERIAL_MAX, 5, 10, true);
+      } else {
+        // 电容卡死、值高但无变化 → 兜底给个 30% 速度,避免完全没反应
+        target = map(p.serialValue, SERIAL_MIN_TO_MOVE, SERIAL_MAX, 5, 10, true)
+                 * FALLBACK_SPEED_FACTOR;
       }
     } else {
       target = map(p.crankRate, 0, MAX_CRANK_RATE, 0, 10, true);
