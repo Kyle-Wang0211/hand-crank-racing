@@ -16,6 +16,11 @@ const MAX_CRANK_RATE = 8;
 const SERIAL_MAX = 1000;
 const SERIAL_MIN_TO_MOVE = 300;
 const SERIAL_STALE_MS = 600;
+// 防"电容存电"的活跃检测:
+// 即使 Arduino 一直发 1000,只要数值不再 fluctuate(电容静止),就当作"没在摇"
+const SIGNIFICANT_CHANGE = 25;       // 串口值跳动 >= 25 算"活跃"
+const ACTIVITY_STALE_MS = 700;       // 超过 0.7 秒没活跃跳动 = 已停摇
+
 const READY_CRANK_THRESHOLD = 500;   // 串口模式下,摇得超过此值即视为"准备好"
 const COUNTDOWN_MS = 3000;            // 3 秒倒数
 
@@ -50,11 +55,19 @@ function setup() {
   arduino.onValues = (values) => {
     useSerial = true;
     lastSerialUpdate = millis();
+    const now = millis();
     for (let i = 0; i < players.length && i < values.length; i++) {
-      players[i].serialValue = values[i];
+      const newVal = values[i];
+      const p = players[i];
+      // 活跃跳动检测: 如果新值比上次显著变化,标记"还在摇"
+      if (Math.abs(newVal - p.prevSerialValue) >= SIGNIFICANT_CHANGE) {
+        p.lastActivityTime = now;
+      }
+      p.prevSerialValue = newVal;
+      p.serialValue = newVal;
     }
     setStatus('ui.serialConnected', {
-      values: values.map(v => v.toFixed(0)).join(', ')
+      values: values.slice(0, 2).map(v => v.toFixed(0)).join(', ')
     });
   };
   arduino.onDisconnect = () => {
@@ -93,6 +106,8 @@ function resetGame() {
     finished: false,
     finishTime: 0,
     ready: false,
+    prevSerialValue: 0,
+    lastActivityTime: 0,
   }));
   state = 'lobby';
   startTime = 0;
@@ -135,7 +150,9 @@ function updateInputs() {
 
     let target;
     if (useSerial) {
-      if (p.serialValue < SERIAL_MIN_TO_MOVE) {
+      // 活跃检测: 数值卡住不动 = 电容存电而已,不算在摇
+      const inactive = (now - p.lastActivityTime) > ACTIVITY_STALE_MS;
+      if (inactive || p.serialValue < SERIAL_MIN_TO_MOVE) {
         target = 0;
       } else {
         target = map(p.serialValue, SERIAL_MIN_TO_MOVE, SERIAL_MAX, 5, 10, true);
