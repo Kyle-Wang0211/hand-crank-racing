@@ -21,7 +21,7 @@
 const int SAMPLE_MS = 50;     // 采样周期 50ms = 20Hz (游戏够流畅)
 const int DEADZONE  = 500;    // 低于此 ADC 值算 0 (避开噪声 + 惯性残压)
                               //   = 电机约 3.1V 以下 = 必须真正在摇
-const int MAX_ADC   = 2000;   // 满速门槛 ≈ 电机 12.4V ≈ 使劲摇
+const int MAX_ADC   = 3500;   // 满速门槛 ≈ 电机 22V ≈ 拼命摇
                               //   低于此按比例给速度,达到就 100%
 const int SMOOTH_N  = 6;      // EMA 窗口 (响应 ~0.3s,够快但不抖)
 
