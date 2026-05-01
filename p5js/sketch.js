@@ -20,8 +20,14 @@ const SERIAL_STALE_MS = 600;
 // 电机转动 → ADC 在小范围波动 (commutator ripple)
 // 电机静止 → ADC 死平 (无论电容存了多少电)
 const RAW_HISTORY_SIZE = 12;     // 滑动窗口: ~0.6s @ 20Hz
-const RAW_PP_MIN = 25;           // 抖动幅度 < 此值 = 没转 (含 ADC 噪声)
+// 读 localStorage 取 monitor 页调过的门槛 (没设过就用 10)
+let RAW_PP_MIN = parseInt(localStorage.getItem('ppThreshold') || '10', 10);
 const RAW_PP_MAX = 250;          // 抖动幅度 ≥ 此值 = 满速
+// 每帧重新读门槛,这样在 monitor 页改了之后切回来不用刷新
+function refreshThreshold() {
+  const v = parseInt(localStorage.getItem('ppThreshold') || '10', 10);
+  if (Number.isFinite(v)) RAW_PP_MIN = v;
+}
 
 const READY_CRANK_THRESHOLD = 500;   // 串口模式下,摇得超过此值即视为"准备好"
 const COUNTDOWN_MS = 3000;            // 3 秒倒数
@@ -138,6 +144,7 @@ function draw() {
 
 function updateInputs() {
   const now = millis();
+  refreshThreshold();    // 读 monitor 页可能改过的 PP 门槛
 
   // 串口陈旧检测
   const serialStale = useSerial && (now - lastSerialUpdate > SERIAL_STALE_MS);

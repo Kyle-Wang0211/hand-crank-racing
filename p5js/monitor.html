@@ -99,6 +99,20 @@
     <a href="index.html">← 回到游戏</a>
   </div>
 
+  <div class="controls">
+    <label style="font-size: 14px;">启动门槛 PP =
+      <strong id="thrVal" style="color: #facc15; font-family: monospace;">10</strong>
+    </label>
+    <input type="range" id="thrSlider" min="2" max="100" step="1" value="10"
+           style="flex: 1; max-width: 400px;">
+    <span style="color: #888; font-size: 12px;">
+      调小 = 更灵敏 / 调大 = 更难触发
+    </span>
+    <span style="color: #5fc9ff; font-size: 12px;">
+      (会自动同步到游戏)
+    </span>
+  </div>
+
   <div class="channels">
     <div class="channel p1" id="ch0">
       <div class="ch-title">玩家1 / 红色 <span class="pin">A2</span></div>
@@ -140,7 +154,7 @@
 'use strict';
 
 const RAW_HISTORY = 12;       // 滑动窗口大小
-const PP_THRESHOLD = 25;      // 跟游戏端一致的启动门槛
+let PP_THRESHOLD = parseInt(localStorage.getItem('ppThreshold') || '10', 10);
 const PP_DISPLAY_MAX = 300;   // 进度条 100% 对应的 PP 值
 const ADC_MAX = 4095;
 const HISTORY_LEN = 200;      // 图上保留多少个采样点 (~10秒)
@@ -169,6 +183,17 @@ arduino.onDisconnect = () => {
   document.getElementById('status').textContent = '已断开';
   resetConnectButton();
 };
+
+// 滑块: 调整门槛并同步到 localStorage (游戏端读)
+const thrSlider = document.getElementById('thrSlider');
+const thrVal = document.getElementById('thrVal');
+thrSlider.value = PP_THRESHOLD;
+thrVal.textContent = PP_THRESHOLD;
+thrSlider.addEventListener('input', () => {
+  PP_THRESHOLD = parseInt(thrSlider.value, 10);
+  thrVal.textContent = PP_THRESHOLD;
+  localStorage.setItem('ppThreshold', String(PP_THRESHOLD));
+});
 
 document.getElementById('connectBtn').addEventListener('click', async () => {
   const ok = await arduino.connect();
