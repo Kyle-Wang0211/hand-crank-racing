@@ -172,7 +172,9 @@ function updateInputs() {
       if (p.rawPP < RAW_PP_MIN) {
         target = 0;          // 死平 = 没转
       } else {
-        target = map(p.rawPP, RAW_PP_MIN, RAW_PP_MAX, 5, 10, true);
+        // 满速门槛 = 启动门槛 + 500 (动态跟随,这样大小门槛都好用)
+        const dynMax = RAW_PP_MIN + 500;
+        target = map(p.rawPP, RAW_PP_MIN, dynMax, 5, 10, true);
       }
     } else {
       target = map(p.crankRate, 0, MAX_CRANK_RATE, 0, 10, true);
