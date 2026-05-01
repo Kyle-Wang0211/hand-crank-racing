@@ -20,14 +20,9 @@ const SERIAL_STALE_MS = 600;
 // 电机转动 → ADC 在小范围波动 (commutator ripple)
 // 电机静止 → ADC 死平 (无论电容存了多少电)
 const RAW_HISTORY_SIZE = 12;     // 滑动窗口: ~0.6s @ 20Hz
-// 读 localStorage 取 monitor 页调过的门槛 (没设过就用 10)
-let RAW_PP_MIN = parseInt(localStorage.getItem('ppThreshold') || '10', 10);
-const RAW_PP_MAX = 250;          // 抖动幅度 ≥ 此值 = 满速
-// 每帧重新读门槛,这样在 monitor 页改了之后切回来不用刷新
-function refreshThreshold() {
-  const v = parseInt(localStorage.getItem('ppThreshold') || '10', 10);
-  if (Number.isFinite(v)) RAW_PP_MIN = v;
-}
+// 游戏自己的阈值,跟监测页解耦,不读 localStorage
+const RAW_PP_MIN = 1000;         // PP < 1000 = 小人不动
+const RAW_PP_MAX = 1500;         // PP ≥ 1500 = 满速
 
 const READY_CRANK_THRESHOLD = 500;   // 串口模式下,摇得超过此值即视为"准备好"
 const COUNTDOWN_MS = 3000;            // 3 秒倒数
@@ -142,7 +137,6 @@ function draw() {
 
 function updateInputs() {
   const now = millis();
-  refreshThreshold();    // 读 monitor 页可能改过的 PP 门槛
 
   // 串口陈旧检测
   const serialStale = useSerial && (now - lastSerialUpdate > SERIAL_STALE_MS);
@@ -170,11 +164,10 @@ function updateInputs() {
       }
 
       if (p.rawPP < RAW_PP_MIN) {
-        target = 0;          // 死平 = 没转
+        target = 0;          // PP < 1000 → 静止
       } else {
-        // 满速门槛 = 启动门槛 + 500 (动态跟随,这样大小门槛都好用)
-        const dynMax = RAW_PP_MIN + 500;
-        target = map(p.rawPP, RAW_PP_MIN, dynMax, 5, 10, true);
+        // PP 1000 → 速度 5 (最慢的跑); PP 1500+ → 速度 10 (满速)
+        target = map(p.rawPP, RAW_PP_MIN, RAW_PP_MAX, 5, 10, true);
       }
     } else {
       target = map(p.crankRate, 0, MAX_CRANK_RATE, 0, 10, true);
