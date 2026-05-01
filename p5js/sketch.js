@@ -178,10 +178,12 @@ function updateInputs() {
 }
 
 function updateLobby() {
-  // 串口模式下: 摇得猛 → 自动准备
+  // 串口模式下: 摇起来 → 自动准备 (PP 或归一化值任一够都行)
   if (useSerial) {
     for (const p of players) {
-      if (p.serialValue > READY_CRANK_THRESHOLD) p.ready = true;
+      if (p.rawPP > RAW_PP_MIN || p.serialValue > READY_CRANK_THRESHOLD) {
+        p.ready = true;
+      }
     }
   }
   // 全员就绪 → 进入倒数
