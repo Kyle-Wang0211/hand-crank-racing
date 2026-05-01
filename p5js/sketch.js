@@ -16,12 +16,12 @@ const MAX_CRANK_RATE = 8;
 const SERIAL_MAX = 1000;
 const SERIAL_MIN_TO_MOVE = 300;
 const SERIAL_STALE_MS = 600;
-// 防"电容存电"的活跃检测 (放宽版):
-// 任何向上跳动 ≥ 5 都算"还在摇"; 持续 3 秒一动不动才认定停摇
-const SIGNIFICANT_CHANGE = 5;
-const ACTIVITY_STALE_MS = 3000;
-// 兜底: 即使无任何活跃信号,只要数值还高,先按 30% 速度走一会儿,避免完全没反应
-const FALLBACK_SPEED_FACTOR = 0.3;
+// 全新策略: 不看电压绝对值,看 ADC 抖动幅度 (peak-to-peak)
+// 电机转动 → ADC 在小范围波动 (commutator ripple)
+// 电机静止 → ADC 死平 (无论电容存了多少电)
+const RAW_HISTORY_SIZE = 12;     // 滑动窗口: ~0.6s @ 20Hz
+const RAW_PP_MIN = 25;           // 抖动幅度 < 此值 = 没转 (含 ADC 噪声)
+const RAW_PP_MAX = 250;          // 抖动幅度 ≥ 此值 = 满速
 
 const READY_CRANK_THRESHOLD = 500;   // 串口模式下,摇得超过此值即视为"准备好"
 const COUNTDOWN_MS = 3000;            // 3 秒倒数
@@ -55,18 +55,16 @@ function setup() {
 
   arduino = new ArduinoSerial();
   arduino.onValues = (values) => {
+    // 协议: [out1, out2, raw1, raw2] (前两个是归一化,后两个是 ADC 原始值)
     useSerial = true;
     lastSerialUpdate = millis();
-    const now = millis();
-    for (let i = 0; i < players.length && i < values.length; i++) {
-      const newVal = values[i];
+    for (let i = 0; i < Math.min(2, players.length); i++) {
       const p = players[i];
-      // 活跃跳动检测: 如果新值比上次显著变化,标记"还在摇"
-      if (Math.abs(newVal - p.prevSerialValue) >= SIGNIFICANT_CHANGE) {
-        p.lastActivityTime = now;
-      }
-      p.prevSerialValue = newVal;
-      p.serialValue = newVal;
+      p.serialValue = values[i] || 0;
+      // 用 raw 检测抖动 (兼容旧固件: 没有 raw 就用 out 当 raw)
+      p.rawValue = values.length >= 4 ? values[2 + i] : values[i] * 4;
+      p.rawHistory.push(p.rawValue);
+      if (p.rawHistory.length > RAW_HISTORY_SIZE) p.rawHistory.shift();
     }
     setStatus('ui.serialConnected', {
       values: values.slice(0, 2).map(v => v.toFixed(0)).join(', ')
@@ -108,8 +106,9 @@ function resetGame() {
     finished: false,
     finishTime: 0,
     ready: false,
-    prevSerialValue: 0,
-    lastActivityTime: 0,
+    rawValue: 0,
+    rawHistory: [],
+    rawPP: 0,                  // 当前抖动幅度 (用于 HUD 显示)
   }));
   state = 'lobby';
   startTime = 0;
@@ -152,17 +151,23 @@ function updateInputs() {
 
     let target;
     if (useSerial) {
-      // 活跃检测: 数值卡住不动 = 电容存电而已,不算在摇
-      const inactive = (now - p.lastActivityTime) > ACTIVITY_STALE_MS;
-      if (p.serialValue < SERIAL_MIN_TO_MOVE) {
-        target = 0;
-      } else if (!inactive) {
-        // 正常情况: 有活跃信号 → 按值映射速度
-        target = map(p.serialValue, SERIAL_MIN_TO_MOVE, SERIAL_MAX, 5, 10, true);
+      // 用 ADC 抖动幅度判断电机有没有在转
+      // (绝对值无效,因为电容会存电)
+      if (p.rawHistory.length >= 4) {
+        let mn = Infinity, mx = -Infinity;
+        for (const v of p.rawHistory) {
+          if (v < mn) mn = v;
+          if (v > mx) mx = v;
+        }
+        p.rawPP = mx - mn;
       } else {
-        // 电容卡死、值高但无变化 → 兜底给个 30% 速度,避免完全没反应
-        target = map(p.serialValue, SERIAL_MIN_TO_MOVE, SERIAL_MAX, 5, 10, true)
-                 * FALLBACK_SPEED_FACTOR;
+        p.rawPP = 0;
+      }
+
+      if (p.rawPP < RAW_PP_MIN) {
+        target = 0;          // 死平 = 没转
+      } else {
+        target = map(p.rawPP, RAW_PP_MIN, RAW_PP_MAX, 5, 10, true);
       }
     } else {
       target = map(p.crankRate, 0, MAX_CRANK_RATE, 0, 10, true);
@@ -374,7 +379,7 @@ function drawOneTrack(p, yTop) {
   );
   if (useSerial) {
     fill(100, 200, 255);
-    text(`${t('label.serial')} ${p.serialValue.toFixed(0)}`, 360, yTop + 14);
+    text(`${t('label.serial')} ${p.serialValue.toFixed(0)}   PP ${(p.rawPP || 0).toFixed(0)}`, 360, yTop + 14);
   }
 
   const barX = CANVAS_W - 200, barY = yTop + 14, barW = 180, barH = 12;
