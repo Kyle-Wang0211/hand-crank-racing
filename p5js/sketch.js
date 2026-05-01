@@ -559,11 +559,11 @@ function drawCountdown() {
 
   // 数字弹动效果: 一秒内从 1 跌到 0,然后回到 1
   const subPhase = remaining > 0 ? (1 - (remaining % 1)) : 0;
-  const scale = 0.7 + (1 - subPhase) * 0.6;
+  const popScale = 0.7 + (1 - subPhase) * 0.6;
 
   push();
   translate(CANVAS_W / 2, CANVAS_H / 2);
-  scale(scale);
+  scale(popScale);
   textAlign(CENTER, CENTER);
   fill(color[0], color[1], color[2]);
   textSize(180);
